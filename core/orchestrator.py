@@ -815,7 +815,8 @@ class Orchestrator(BaseAgent):
 
             step_output = ""
             try:
-                for delta, done, p_tok, _ in _stream_chat(
+                _t0 = time.time(); _e_tok = 0
+                for delta, done, p_tok, e_tok in _stream_chat(
                     self.models["primary"],
                     [{"role": "user", "content": step_prompt}],
                     PRIMARY_OPTIONS,
@@ -827,7 +828,11 @@ class Orchestrator(BaseAgent):
                     if done:
                         if p_tok:
                             self.monitor.add_tokens(p_tok, 0)
+                        _e_tok = e_tok
                         break
+                from core.metrics import log_request
+                log_request("primary", self.models["primary"],
+                            round((time.time() - _t0) * 1000, 1), _e_tok, success=True)
             except Exception as e:
                 yield self._err(f"Step {idx+1} error: {e}", base_pct)
                 yield self._agent_chunk("primary", "idle")
@@ -865,7 +870,8 @@ class Orchestrator(BaseAgent):
                 self.monitor.add_tokens(max(1, len(retry_prompt) // 4), 0)
                 retry_out = ""
                 try:
-                    for delta, done, p_tok, _ in _stream_chat(
+                    _t0 = time.time(); _e_tok = 0
+                    for delta, done, p_tok, e_tok in _stream_chat(
                         self.models["primary"],
                         [{"role": "user", "content": retry_prompt}],
                         PRIMARY_OPTIONS,
@@ -876,8 +882,12 @@ class Orchestrator(BaseAgent):
                         if done:
                             if p_tok:
                                 self.monitor.add_tokens(p_tok, 0)
+                            _e_tok = e_tok
                             break
                     built_files.extend(_write_files(retry_out, output_dir))
+                    from core.metrics import log_request
+                    log_request("primary", self.models["primary"],
+                                round((time.time() - _t0) * 1000, 1), _e_tok, success=True)
                 except Exception as e:
                     yield self._err(f"Retry error: {e}", base_pct + 3)
 
@@ -936,7 +946,8 @@ class Orchestrator(BaseAgent):
                 self.monitor.add_tokens(max(1, len(fix_prompt) // 4), 0)
                 fix_out = ""
                 try:
-                    for delta, done, p_tok, _ in _stream_chat(
+                    _t0 = time.time(); _e_tok = 0
+                    for delta, done, p_tok, e_tok in _stream_chat(
                         self.models["primary"],
                         [{"role": "user", "content": fix_prompt}],
                         PRIMARY_OPTIONS,
@@ -948,12 +959,16 @@ class Orchestrator(BaseAgent):
                         if done:
                             if p_tok:
                                 self.monitor.add_tokens(p_tok, 0)
+                            _e_tok = e_tok
                             break
                     new_files = _write_files(fix_out, output_dir)
                     if new_files:
                         new_set = set(new_files)
                         built_files = [f for f in built_files if f not in new_set] + new_files
                         yield self._c("files", json.dumps(new_files), base_pct + 10)
+                    from core.metrics import log_request
+                    log_request("primary", self.models["primary"],
+                                round((time.time() - _t0) * 1000, 1), _e_tok, success=True)
                 except Exception as e:
                     yield self._err(f"Fix pass error: {e}", base_pct + 9)
                 yield self._agent_chunk("primary", "idle")
