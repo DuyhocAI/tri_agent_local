@@ -413,10 +413,6 @@ def _resolve_models() -> dict[str, str]:
     return resolved
 
 
-# ── System prompt helpers ─────────────────────────────────────────────────────
-
-
-
 # ══════════════════════════════════════════════════════════════════════════════
 #  HERMES ORCHESTRATOR
 # ══════════════════════════════════════════════════════════════════════════════
@@ -432,8 +428,8 @@ class Orchestrator(BaseAgent):
         - Supervisor gate (_sup_approve_tool)
         - Tool execution loop (_run_tool_loop)
 
-    P2 note: run_chat and run_build will migrate to BuilderAgent/WriterAgent/AnalystAgent.
-    For now they stay here; routing logic (route()) delegates to them.
+    run_chat delegates primary generation to specialist agents (Builder/Writer/Analyst).
+    run_build stays here — it drives a multi-phase pipeline with its own step loop.
     """
 
     def __init__(self, socketio, monitor):

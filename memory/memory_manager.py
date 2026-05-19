@@ -16,7 +16,7 @@ WHY this replaces the flat-JSON design
     • Full message content stored — no truncation
     • search_short_term() for keyword recall mid-session
     • UNIQUE constraint on (session_id, topic) replaces manual dedup loop
-    • Thread-safe via WAL mode + module-level write lock
+    • Thread-safe via per-instance lock + SQLite WAL mode
 
 Schema
 ──────
@@ -25,6 +25,7 @@ Schema
                 UNIQUE(session_id, topic) ON CONFLICT REPLACE
 
 Storage: ~/.hermes/memory/session_memory.db
+         (override via db_path arg — useful for isolated tests)
 
 Public API is a drop-in replacement — all method signatures unchanged.
 """
@@ -39,7 +40,7 @@ from config import MEMORY_CONFIG
 
 logger = logging.getLogger("hermes.memory")
 
-# ── Storage ───────────────────────────────────────────────────────────────────
+# ── Storage defaults ───────────────────────────────────────────────────────────
 
 MEMORY_DIR = Path.home() / ".hermes" / "memory"
 MEMORY_DIR.mkdir(parents=True, exist_ok=True)
@@ -48,10 +49,6 @@ DB_PATH = MEMORY_DIR / "session_memory.db"
 SHORT_MAX      = MEMORY_CONFIG["short_term_max"]   # 30
 LONG_MAX       = MEMORY_CONFIG["long_term_max"]    # 200
 EXPIRE_SECONDS = MEMORY_CONFIG["expire_seconds"]   # 7200
-
-# Single write-lock — keeps multi-threaded writes serialised without a
-# connection pool. SQLite WAL allows concurrent reads at no extra cost.
-_LOCK = threading.Lock()
 
 
 # ── Schema ────────────────────────────────────────────────────────────────────
@@ -85,25 +82,6 @@ CREATE INDEX IF NOT EXISTS idx_lt_session
 """
 
 
-def _open() -> sqlite3.Connection:
-    """Open a connection to the DB.  check_same_thread=False is safe here
-    because every write is protected by _LOCK."""
-    conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-def _init():
-    with _LOCK:
-        c = _open()
-        c.executescript(_SCHEMA)
-        c.commit()
-        c.close()
-
-
-_init()   # run once at import time
-
-
 def _cutoff_ts() -> str:
     """ISO string for the oldest short-term entry worth keeping."""
     dt = datetime.now(timezone.utc) - timedelta(seconds=EXPIRE_SECONDS)
@@ -117,8 +95,32 @@ def _cutoff_ts() -> str:
 class MemoryManager:
     """
     Drop-in replacement for the v1 flat-JSON MemoryManager.
-    All public method signatures are identical.
+
+    Args:
+        db_path: Override the default DB path. Pass a tmp_path in tests
+                 to get a clean, isolated database per test.
     """
+
+    def __init__(self, db_path: "Path | str | None" = None):
+        self._db_path = Path(db_path) if db_path else DB_PATH
+        self._lock    = threading.Lock()
+        self._init_db()
+
+    # ── Internal helpers ──────────────────────────────────────────────────────
+
+    def _init_db(self) -> None:
+        self._db_path.parent.mkdir(parents=True, exist_ok=True)
+        with self._lock:
+            c = self._open()
+            c.executescript(_SCHEMA)
+            c.commit()
+            c.close()
+
+    def _open(self) -> sqlite3.Connection:
+        """Open a connection. check_same_thread=False is safe — writes use self._lock."""
+        conn = sqlite3.connect(str(self._db_path), check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        return conn
 
     # ── Short-term: read ──────────────────────────────────────────────────────
 
@@ -127,8 +129,8 @@ class MemoryManager:
         Return all non-expired entries for this session, oldest → newest.
         Each entry dict has keys: role, user, assistant, ts.
         """
-        with _LOCK:
-            c = _open()
+        with self._lock:
+            c = self._open()
             try:
                 rows = c.execute(
                     """
@@ -163,10 +165,9 @@ class MemoryManager:
         asst_msg = entry.get("assistant", "")
         ts       = entry.get("ts") or datetime.now().isoformat()
 
-        with _LOCK:
-            c = _open()
+        with self._lock:
+            c = self._open()
             try:
-                # Insert new row
                 c.execute(
                     """
                     INSERT INTO short_term
@@ -207,8 +208,8 @@ class MemoryManager:
 
     def get_long_term(self, session_id: str) -> list:
         """Return all long-term facts for this session. Each entry: {topic, value, ts}."""
-        with _LOCK:
-            c = _open()
+        with self._lock:
+            c = self._open()
             try:
                 rows = c.execute(
                     """
@@ -241,8 +242,8 @@ class MemoryManager:
         if not topic:
             return
 
-        with _LOCK:
-            c = _open()
+        with self._lock:
+            c = self._open()
             try:
                 c.execute(
                     """
@@ -274,17 +275,16 @@ class MemoryManager:
             finally:
                 c.close()
 
-    # ── Keyword search (new) ──────────────────────────────────────────────────
+    # ── Keyword search ────────────────────────────────────────────────────────
 
     def search_short_term(self, session_id: str, query: str, limit: int = 10) -> list:
         """
         Search past exchanges containing `query` in either side of the message.
         Returns up to `limit` results, newest first.
-        Useful for the orchestrator to surface relevant context on long sessions.
         """
         pattern = f"%{query}%"
-        with _LOCK:
-            c = _open()
+        with self._lock:
+            c = self._open()
             try:
                 rows = c.execute(
                     """
@@ -308,8 +308,8 @@ class MemoryManager:
 
     def clear(self, session_id: str, scope: str = "short"):
         """scope: 'short' | 'long' | 'all'"""
-        with _LOCK:
-            c = _open()
+        with self._lock:
+            c = self._open()
             try:
                 if scope in ("short", "all"):
                     c.execute(
@@ -332,8 +332,8 @@ class MemoryManager:
 
     def list_sessions(self) -> list:
         """Return all session IDs that have any stored data."""
-        with _LOCK:
-            c = _open()
+        with self._lock:
+            c = self._open()
             try:
                 rows = c.execute(
                     """
@@ -348,8 +348,8 @@ class MemoryManager:
                 c.close()
 
     def session_summary(self, session_id: str) -> dict:
-        with _LOCK:
-            c = _open()
+        with self._lock:
+            c = self._open()
             try:
                 sc = c.execute(
                     "SELECT COUNT(*) FROM short_term WHERE session_id = ?",
@@ -363,24 +363,24 @@ class MemoryManager:
                     "session_id":  session_id,
                     "short_count": sc,
                     "long_count":  lc,
-                    "db_path":     str(DB_PATH),
+                    "db_path":     str(self._db_path),
                 }
             finally:
                 c.close()
 
     def db_stats(self) -> dict:
         """Global DB stats — exposed via /api/system if desired."""
-        with _LOCK:
-            c = _open()
+        with self._lock:
+            c = self._open()
             try:
                 st = c.execute("SELECT COUNT(*) FROM short_term").fetchone()[0]
                 lt = c.execute("SELECT COUNT(*) FROM long_term").fetchone()[0]
-                sz = DB_PATH.stat().st_size if DB_PATH.exists() else 0
+                sz = self._db_path.stat().st_size if self._db_path.exists() else 0
                 return {
                     "short_term_rows": st,
                     "long_term_rows":  lt,
                     "db_size_kb":      round(sz / 1024, 1),
-                    "db_path":         str(DB_PATH),
+                    "db_path":         str(self._db_path),
                 }
             finally:
                 c.close()

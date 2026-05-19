@@ -126,7 +126,8 @@ def cron_run(job_id: str):
     if not scheduler or not scheduler._scheduler:
         return jsonify({"error": "Scheduler not running"}), 503
     try:
-        scheduler._scheduler.get_job(job_id).modify(next_run_time=__import__("datetime").datetime.now())
+        from datetime import datetime as _dt
+        scheduler._scheduler.get_job(job_id).modify(next_run_time=_dt.now())
         return jsonify({"ok": True, "job_id": job_id})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -150,12 +151,11 @@ def analytics_tokens():
                     continue
                 try:
                     entry = json.loads(line)
-                    day = entry.get("ts", "")[:10]
+                    day = entry.get("timestamp", "")[:10]
                     if not day:
                         continue
-                    bucket = daily.setdefault(day, {"prompt": 0, "eval": 0, "calls": 0})
-                    bucket["prompt"] += entry.get("prompt_tokens", 0)
-                    bucket["eval"]   += entry.get("eval_tokens", 0)
+                    bucket = daily.setdefault(day, {"tokens": 0, "calls": 0})
+                    bucket["tokens"] += entry.get("tokens_generated", 0)
                     bucket["calls"]  += 1
                 except Exception:
                     continue
