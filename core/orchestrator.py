@@ -565,17 +565,21 @@ class Orchestrator(BaseAgent):
 
         rev = _parse_json(rev_text, {"strategy": "direct", "token_budget": 128000})
 
+        # num_predict=-1 means "unlimited" in Ollama — treat it as a large cap
+        _np = PRIMARY_OPTIONS.get("num_predict", -1)
+        _budget_cap = _np if _np > 0 else 128_000
+
         strategy = rev.get("strategy", "direct")
         if strategy in ("code", "elaborate") or any(
             kw in user_message.lower()
             for kw in ("code", "write", "implement", "build", "create", "leetcode",
                        "algorithm", "function", "class", "script", "program")
         ):
-            token_budget = PRIMARY_OPTIONS.get("num_predict", 128000)
+            token_budget = _budget_cap
             strategy     = "code"
         else:
-            token_budget = max(300, min(int(rev.get("token_budget", 128000)),
-                                        PRIMARY_OPTIONS.get("num_predict", 128000)))
+            token_budget = max(300, min(int(rev.get("token_budget", _budget_cap)),
+                                        _budget_cap))
 
         # Determine agent name for routing display
         agent_role = rev.get("route_override") or self.route(user_message)
