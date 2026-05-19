@@ -1,0 +1,83 @@
+version: "1"
+domain: "file_ops"
+
+skills:
+  - name: read_file
+    description: "Read a file and return its contents (max 4000 chars)"
+    destructive: false
+    handler: skills.handlers.read_file
+    parameters:
+      path:
+        type: string
+        required: true
+        description: "Absolute or relative path to the file"
+
+  - name: write_file
+    description: "Write or create a file with the given content (full rewrite)"
+    destructive: false
+    handler: skills.handlers.write_file
+    parameters:
+      path:
+        type: string
+        required: true
+        description: "Path to write to (parent dirs auto-created)"
+      content:
+        type: string
+        required: true
+        description: "Full file content to write"
+
+  - name: edit_file
+    description: "Find and replace text in an existing file (surgical edit)"
+    destructive: false
+    handler: skills.handlers.edit_file
+    parameters:
+      path:
+        type: string
+        required: true
+      old_text:
+        type: string
+        required: true
+        description: "Exact substring to find"
+      new_text:
+        type: string
+        required: true
+        description: "Replacement text"
+
+  - name: append_file
+    description: "Append text to the end of an existing file (or create it)"
+    destructive: false
+    handler: skills.handlers.append_file
+    parameters:
+      path:
+        type: string
+        required: true
+      content:
+        type: string
+        required: true
+
+  - name: delete_file
+    description: "Permanently delete a file or directory (requires supervisor approval)"
+    destructive: true
+    handler: skills.handlers.delete_file
+    parameters:
+      path:
+        type: string
+        required: true
+
+  - name: list_dir
+    description: "List the contents of a directory with file sizes"
+    destructive: false
+    handler: skills.handlers.list_dir
+    parameters:
+      path:
+        type: string
+        required: true
+
+  - name: file_exists
+    description: "Check whether a file or directory path exists"
+    destructive: false
+    handler: skills.handlers.file_exists
+    parameters:
+      path:
+        type: string
+        required: true

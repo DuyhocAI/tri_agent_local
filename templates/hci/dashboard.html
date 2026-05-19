@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hermes HCI — Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+<style>
+:root{--bg:#07080d;--card:#10121e;--bdr:#1e2235;--acc:#5b6ef5;--txt:#c8cfe8;--mu:#5a6080;
+      --ok:#39d98a;--warn:#f5c842;--err:#f55b5b;--sidebar:220px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:'Courier New',monospace;
+     display:flex;min-height:100vh;font-size:.85rem}
+/* Sidebar */
+.sidebar{width:var(--sidebar);background:var(--card);border-right:1px solid var(--bdr);
+         display:flex;flex-direction:column;padding:1.2rem 0;flex-shrink:0}
+.logo{padding:0 1.2rem 1.2rem;border-bottom:1px solid var(--bdr)}
+.logo h1{color:var(--acc);font-size:.95rem;letter-spacing:3px}
+.logo .ver{font-size:.6rem;color:var(--mu);letter-spacing:2px}
+nav{flex:1;padding:.8rem 0}
+.nav-item{display:flex;align-items:center;gap:.6rem;padding:.55rem 1.2rem;
+          cursor:pointer;color:var(--mu);transition:.15s}
+.nav-item:hover,.nav-item.active{color:var(--txt);background:rgba(91,110,245,.1)}
+.nav-item.active{border-right:2px solid var(--acc)}
+.nav-icon{font-size:1rem;width:18px;text-align:center}
+.sidebar-footer{padding:1rem 1.2rem;border-top:1px solid var(--bdr);font-size:.65rem;color:var(--mu)}
+/* Main */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.topbar{padding:.7rem 1.5rem;border-bottom:1px solid var(--bdr);display:flex;
+        align-items:center;justify-content:space-between}
+.topbar-title{font-size:.8rem;letter-spacing:2px;color:var(--mu)}
+.topbar-actions a{font-size:.7rem;color:var(--mu);text-decoration:none;
+                  padding:.3rem .7rem;border:1px solid var(--bdr);border-radius:3px}
+.topbar-actions a:hover{color:var(--txt);border-color:var(--acc)}
+.content{flex:1;overflow-y:auto;padding:1.5rem}
+/* Tabs */
+.tab{display:none}
+.tab.active{display:block}
+/* Cards */
+.card{background:var(--card);border:1px solid var(--bdr);border-radius:6px;
+      padding:1rem 1.2rem;margin-bottom:1rem}
+.card-title{font-size:.65rem;color:var(--mu);letter-spacing:2px;
+            text-transform:uppercase;margin-bottom:.8rem}
+/* Stats grid */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.8rem;margin-bottom:1rem}
+.stat-card{background:var(--card);border:1px solid var(--bdr);border-radius:6px;padding:.8rem 1rem}
+.stat-val{font-size:1.6rem;font-weight:900;color:var(--acc);line-height:1}
+.stat-label{font-size:.6rem;color:var(--mu);letter-spacing:1px;margin-top:.2rem}
+/* Health checks */
+.check-row{display:flex;align-items:center;gap:.8rem;padding:.4rem 0;
+           border-bottom:1px solid var(--bdr)}
+.check-row:last-child{border-bottom:none}
+.badge{display:inline-block;padding:.1rem .5rem;border-radius:3px;font-size:.65rem;
+       letter-spacing:1px;font-weight:700}
+.badge.ok{background:rgba(57,217,138,.15);color:var(--ok)}
+.badge.fail{background:rgba(245,91,91,.15);color:var(--err)}
+/* File browser */
+.file-tree{font-size:.8rem}
+.file-row{display:flex;align-items:center;gap:.5rem;padding:.3rem .5rem;
+          border-radius:3px;cursor:pointer}
+.file-row:hover{background:rgba(255,255,255,.04)}
+.file-row.dir{color:var(--acc)}
+.file-actions{display:flex;gap:.4rem;margin-left:auto;opacity:0}
+.file-row:hover .file-actions{opacity:1}
+.btn-sm{padding:.15rem .5rem;font-size:.65rem;border:1px solid var(--bdr);
+        border-radius:3px;background:transparent;color:var(--mu);cursor:pointer}
+.btn-sm:hover{color:var(--txt);border-color:var(--acc)}
+.btn-danger:hover{color:var(--err);border-color:var(--err)}
+/* Cron */
+.cron-row{display:grid;grid-template-columns:1fr 2fr 1fr 80px;gap:.5rem;
+          align-items:center;padding:.5rem 0;border-bottom:1px solid var(--bdr)}
+.cron-row:last-child{border-bottom:none}
+/* Terminal */
+#terminal-container{height:calc(100vh - 160px);background:#000;border-radius:4px;overflow:hidden}
+/* Skills */
+.skill-row{display:flex;align-items:center;gap:.6rem;padding:.4rem 0;
+           border-bottom:1px solid var(--bdr)}
+.skill-row:last-child{border-bottom:none}
+.skill-domain{font-size:.6rem;color:var(--mu);background:rgba(255,255,255,.06);
+              padding:.1rem .4rem;border-radius:2px}
+.skill-destructive{color:var(--warn);font-size:.65rem}
+/* Buttons */
+.btn{padding:.4rem .9rem;border-radius:4px;border:none;cursor:pointer;font-family:inherit;font-size:.75rem}
+.btn-primary{background:var(--acc);color:#fff}
+.btn-primary:hover{opacity:.85}
+.btn-outline{background:transparent;color:var(--mu);border:1px solid var(--bdr)}
+.btn-outline:hover{color:var(--txt);border-color:var(--acc)}
+/* Chart */
+.chart-wrap{position:relative;height:200px}
+</style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="logo">
+    <h1>◈ HERMES</h1>
+    <div class="ver">HCI · CONTROL INTERFACE</div>
+  </div>
+  <nav>
+    <div class="nav-item active" onclick="switchTab('overview')">
+      <span class="nav-icon">⬡</span> Overview
+    </div>
+    <div class="nav-item" onclick="switchTab('terminal')">
+      <span class="nav-icon">⌨</span> Terminal
+    </div>
+    <div class="nav-item" onclick="switchTab('files')">
+      <span class="nav-icon">📁</span> Files
+    </div>
+    <div class="nav-item" onclick="switchTab('cron')">
+      <span class="nav-icon">⏱</span> Cron
+    </div>
+    <div class="nav-item" onclick="switchTab('analytics')">
+      <span class="nav-icon">📊</span> Analytics
+    </div>
+    <div class="nav-item" onclick="switchTab('skills')">
+      <span class="nav-icon">⚙</span> Skills
+    </div>
+  </nav>
+  <div class="sidebar-footer" id="sb-stats">Loading…</div>
+</aside>
+
+<!-- Main -->
+<main class="main">
+  <div class="topbar">
+    <span class="topbar-title" id="tab-title">OVERVIEW</span>
+    <div class="topbar-actions">
+      <a href="/hci/logout" onclick="return confirm('Log out?')">LOGOUT</a>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ── OVERVIEW ── -->
+    <div class="tab active" id="tab-overview">
+      <div class="stats-grid" id="stats-grid">
+        <div class="stat-card"><div class="stat-val" id="s-cpu">—</div><div class="stat-label">CPU %</div></div>
+        <div class="stat-card"><div class="stat-val" id="s-ram">—</div><div class="stat-label">RAM %</div></div>
+        <div class="stat-card"><div class="stat-val" id="s-gpu">—</div><div class="stat-label">GPU %</div></div>
+        <div class="stat-card"><div class="stat-val" id="s-vram">—</div><div class="stat-label">VRAM %</div></div>
+        <div class="stat-card"><div class="stat-val" id="s-disk">—</div><div class="stat-label">DISK %</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Last Health Check</div>
+        <div id="health-checks"><span style="color:var(--mu)">Loading…</span></div>
+        <div style="margin-top:.8rem;display:flex;gap:.5rem">
+          <button class="btn btn-outline" onclick="loadSubconscious()">↻ Refresh</button>
+          <button class="btn btn-primary" onclick="runHealthCheck()">▶ Run Now</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TERMINAL ── -->
+    <div class="tab" id="tab-terminal">
+      <div id="terminal-container"></div>
+    </div>
+
+    <!-- ── FILES ── -->
+    <div class="tab" id="tab-files">
+      <div class="card">
+        <div class="card-title">File Browser</div>
+        <div style="display:flex;gap:.5rem;margin-bottom:.8rem">
+          <input id="path-input" style="flex:1;background:#0d0f1a;border:1px solid var(--bdr);
+                 border-radius:4px;color:var(--txt);font-family:inherit;padding:.4rem .6rem"
+                 value="D:\agent_local" placeholder="Path…">
+          <button class="btn btn-outline" onclick="browsePath(document.getElementById('path-input').value)">Go</button>
+        </div>
+        <div class="file-tree" id="file-tree">Loading…</div>
+      </div>
+    </div>
+
+    <!-- ── CRON ── -->
+    <div class="tab" id="tab-cron">
+      <div class="card">
+        <div class="card-title">Scheduled Jobs</div>
+        <div id="cron-list">Loading…</div>
+      </div>
+    </div>
+
+    <!-- ── ANALYTICS ── -->
+    <div class="tab" id="tab-analytics">
+      <div class="card">
+        <div class="card-title">Token Usage (daily)</div>
+        <div class="chart-wrap"><canvas id="chart-tokens"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Skill Usage (top)</div>
+        <div class="chart-wrap"><canvas id="chart-skills"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Recent Sessions</div>
+        <div id="sessions-list">Loading…</div>
+      </div>
+    </div>
+
+    <!-- ── SKILLS ── -->
+    <div class="tab" id="tab-skills">
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+          <span>Loaded Skills</span>
+          <button class="btn btn-outline" onclick="reloadSkills()">↻ Reload YAML</button>
+        </div>
+        <div id="skills-list">Loading…</div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</main>
+
+<script>
+const CSRF = "{{ csrf_token }}";
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+const TABS = {
+  overview: 'OVERVIEW', terminal: 'TERMINAL', files: 'FILES',
+  cron: 'CRON', analytics: 'ANALYTICS', skills: 'SKILLS'
+};
+let activeTab = 'overview';
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.textContent.trim().toLowerCase().includes(name)) n.classList.add('active');
+  });
+  document.getElementById('tab-title').textContent = TABS[name] || name.toUpperCase();
+  activeTab = name;
+  if (name === 'terminal' && !termInitialised) initTerminal();
+  if (name === 'files')     browsePath(document.getElementById('path-input').value);
+  if (name === 'cron')      loadCron();
+  if (name === 'analytics') loadAnalytics();
+  if (name === 'skills')    loadSkills();
+}
+
+// ── System stats polling ──────────────────────────────────────────────────────
+async function loadStats() {
+  try {
+    const r = await fetch('/hci/api/system');
+    if (!r.ok) return;
+    const d = await r.json();
+    document.getElementById('s-cpu').textContent   = (d.cpu?.percent ?? '—').toFixed?.(0) ?? '—';
+    document.getElementById('s-ram').textContent   = (d.ram?.percent ?? '—').toFixed?.(0) ?? '—';
+    document.getElementById('s-gpu').textContent   = (d.gpu?.gpu_pct ?? 0).toFixed(0);
+    document.getElementById('s-vram').textContent  = (d.gpu?.vram_pct ?? 0).toFixed(0);
+    document.getElementById('s-disk').textContent  = (d.disk?.percent ?? '—').toFixed?.(0) ?? '—';
+    document.getElementById('sb-stats').textContent =
+      `CPU ${(d.cpu?.percent??0).toFixed(0)}%  RAM ${(d.ram?.percent??0).toFixed(0)}%`;
+  } catch (e) {}
+}
+setInterval(loadStats, 3000);
+loadStats();
+
+// ── Health checks ─────────────────────────────────────────────────────────────
+async function loadSubconscious() {
+  const r = await fetch('/hci/api/subconscious/status');
+  const data = await r.json();
+  const el = document.getElementById('health-checks');
+  if (!data.length) { el.innerHTML = '<span style="color:var(--mu)">No checks run yet.</span>'; return; }
+  const last = data[data.length - 1];
+  el.innerHTML = `<div style="font-size:.65rem;color:var(--mu);margin-bottom:.5rem">${last.ts}</div>` +
+    last.checks.map(c =>
+      `<div class="check-row">
+        <span class="badge ${c.ok?'ok':'fail'}">${c.ok?'OK':'FAIL'}</span>
+        <strong>${c.name}</strong>
+        <span style="color:var(--mu);font-size:.75rem">${c.detail}</span>
+      </div>`
+    ).join('');
+}
+
+async function runHealthCheck() {
+  await fetch('/hci/api/subconscious/run', {
+    method:'POST', headers:{'X-CSRF-Token':CSRF,'Content-Type':'application/json'}
+  });
+  setTimeout(loadSubconscious, 800);
+}
+loadSubconscious();
+
+// ── Terminal ──────────────────────────────────────────────────────────────────
+let termInitialised = false;
+function initTerminal() {
+  termInitialised = true;
+  const term = new Terminal({theme:{background:'#000',foreground:'#c8cfe8'},fontSize:13,cursorBlink:true});
+  const fit  = new FitAddon.FitAddon();
+  term.loadAddon(fit);
+  term.open(document.getElementById('terminal-container'));
+  fit.fit();
+
+  const ns = io('/hci-terminal');
+  ns.on('terminal_output', d => term.write(d.data));
+  term.onData(d => ns.emit('terminal_input', {data:d}));
+  window.addEventListener('resize', () => {
+    fit.fit();
+    ns.emit('terminal_resize', {rows:term.rows, cols:term.cols});
+  });
+}
+
+// ── File browser ──────────────────────────────────────────────────────────────
+async function browsePath(path) {
+  document.getElementById('path-input').value = path;
+  const r = await fetch('/hci/api/files?path=' + encodeURIComponent(path));
+  const d = await r.json();
+  if (d.error) { document.getElementById('file-tree').textContent = d.error; return; }
+  if (d.type === 'file') {
+    // Show file content
+    const cr = await fetch('/hci/api/files/read?path=' + encodeURIComponent(path));
+    const cd = await cr.json();
+    document.getElementById('file-tree').innerHTML =
+      `<pre style="color:var(--txt);font-size:.75rem;overflow:auto;max-height:500px">${escHtml(cd.content||'')}</pre>`;
+    return;
+  }
+  const rows = d.entries.map(e => {
+    const icon = e.type==='dir' ? '📁' : '📄';
+    const size = e.size != null ? `<span style="color:var(--mu);margin-left:auto;font-size:.7rem">${fmtBytes(e.size)}</span>` : '';
+    const fullPath = path.replace(/[/\\]$/,'') + '\\' + e.name;
+    return `<div class="file-row ${e.type}" onclick="browsePath('${escAttr(fullPath)}')">
+      ${icon} ${e.name}${size}
+    </div>`;
+  }).join('');
+  const up = path.replace(/[/\\][^/\\]+$/, '') || path;
+  document.getElementById('file-tree').innerHTML =
+    `<div class="file-row dir" onclick="browsePath('${escAttr(up)}')">⬆ ..</div>` + rows;
+}
+
+// ── Cron ──────────────────────────────────────────────────────────────────────
+async function loadCron() {
+  const r = await fetch('/hci/api/cron/list');
+  const jobs = await r.json();
+  const el = document.getElementById('cron-list');
+  if (!jobs.length) { el.innerHTML = '<span style="color:var(--mu)">No jobs scheduled.</span>'; return; }
+  el.innerHTML = jobs.map(j => `
+    <div class="cron-row">
+      <strong>${j.id}</strong>
+      <span style="color:var(--mu);font-size:.75rem">${j.trigger}</span>
+      <span style="color:var(--mu);font-size:.7rem">${j.next_run||'—'}</span>
+      <button class="btn btn-sm" onclick="cronRun('${j.id}')">▶ Run</button>
+    </div>`).join('');
+}
+
+async function cronRun(id) {
+  await fetch('/hci/api/cron/run/'+id, {method:'POST',headers:{'X-CSRF-Token':CSRF}});
+  setTimeout(loadCron, 600);
+}
+
+// ── Analytics ─────────────────────────────────────────────────────────────────
+let tokenChart, skillChart;
+async function loadAnalytics() {
+  const [tokRes, skillRes, sessRes] = await Promise.all([
+    fetch('/hci/api/analytics/tokens').then(r=>r.json()),
+    fetch('/hci/api/analytics/skills').then(r=>r.json()),
+    fetch('/hci/api/analytics/sessions').then(r=>r.json()),
+  ]);
+
+  // Token chart
+  const tCtx = document.getElementById('chart-tokens').getContext('2d');
+  if (tokenChart) tokenChart.destroy();
+  tokenChart = new Chart(tCtx, {
+    type:'bar',
+    data:{
+      labels: tokRes.map(d=>d.day),
+      datasets:[
+        {label:'Prompt tokens',data:tokRes.map(d=>d.prompt),backgroundColor:'rgba(91,110,245,.6)'},
+        {label:'Output tokens',data:tokRes.map(d=>d.eval),backgroundColor:'rgba(57,217,138,.4)'},
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#c8cfe8',font:{family:'Courier New'}}}},
+      scales:{x:{ticks:{color:'#5a6080'}},y:{ticks:{color:'#5a6080'}}}}
+  });
+
+  // Skill chart
+  const sCtx = document.getElementById('chart-skills').getContext('2d');
+  if (skillChart) skillChart.destroy();
+  const top10 = skillRes.slice(0,10);
+  skillChart = new Chart(sCtx, {
+    type:'bar',
+    data:{
+      labels:top10.map(s=>s.skill_name),
+      datasets:[{label:'Uses',data:top10.map(s=>s.total),backgroundColor:'rgba(91,110,245,.6)'}]
+    },
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#5a6080'}},y:{ticks:{color:'#5a6080'}}}}
+  });
+
+  // Sessions
+  document.getElementById('sessions-list').innerHTML = sessRes.length
+    ? sessRes.map(s=>`<div class="check-row">
+        <span class="badge ok">${s.agent||'?'}</span>
+        <span style="font-size:.75rem">${s.summary}</span>
+        <span style="color:var(--mu);font-size:.65rem;margin-left:auto">${s.ts?.slice(0,16)}</span>
+      </div>`).join('')
+    : '<span style="color:var(--mu)">No sessions recorded yet.</span>';
+}
+
+// ── Skills ────────────────────────────────────────────────────────────────────
+async function loadSkills() {
+  const r = await fetch('/hci/api/skills/list');
+  const skills = await r.json();
+  document.getElementById('skills-list').innerHTML = skills.length
+    ? skills.map(s=>`
+      <div class="skill-row">
+        <strong>${s.name}</strong>
+        <span class="skill-domain">${s.domain}</span>
+        ${s.destructive?'<span class="skill-destructive">⚠ destructive</span>':''}
+        <span style="color:var(--mu);font-size:.75rem;flex:1;margin-left:.5rem">${s.description}</span>
+      </div>`).join('')
+    : '<span style="color:var(--mu)">No skills loaded.</span>';
+}
+
+async function reloadSkills() {
+  const r = await fetch('/hci/api/skills/reload', {method:'POST',headers:{'X-CSRF-Token':CSRF}});
+  const d = await r.json();
+  alert(d.ok ? `Reloaded — ${d.count} skills` : d.error);
+  loadSkills();
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function escAttr(s){return s.replace(/'/g,"\\'").replace(/\\/g,'\\\\')}
+function fmtBytes(b){if(b<1024)return b+'B';if(b<1048576)return(b/1024).toFixed(1)+'KB';return(b/1048576).toFixed(1)+'MB'}
+</script>
+</body>
+</html>

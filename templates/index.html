@@ -1,0 +1,1821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRINITY AGENT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── Design tokens ─────────────────────────────────────────────────────── */
+:root {
+  --bg:        #050609;
+  --panel:     #090b12;
+  --card:      #0d1020;
+  --bdr:       #161b2e;
+  --bdr2:      #1e2540;
+  --acc:       #5b6ef5;
+  --acc2:      #3de8a0;
+  --acc3:      #f5c842;
+  --acc4:      #f55b5b;
+  --txt:       #c8cfe8;
+  --txt2:      #7a85a8;
+  --txt3:      #40495e;
+  --mono:      'Share Tech Mono', monospace;
+  --ui:        'Rajdhani', sans-serif;
+  --glow:      0 0 20px rgba(91,110,245,.25);
+  --glow2:     0 0 12px rgba(61,232,160,.2);
+  --sidebar-w: 200px;
+  --stats-w:   190px;
+}
+
+/* ── Reset ─────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  background: var(--bg);
+  color: var(--txt);
+  font-family: var(--ui);
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Scrollbar ─────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bdr2); border-radius: 2px; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TOPBAR
+══════════════════════════════════════════════════════════════════════════ */
+#topbar {
+  height: 44px;
+  min-height: 44px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--bdr);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+  z-index: 100;
+}
+.logo {
+  font-family: var(--ui);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 5px;
+  color: var(--acc);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.logo span { color: var(--txt3); }
+.status-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--acc2);
+  box-shadow: var(--glow2);
+  animation: pulse 2.5s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,100% { opacity: 1; }
+  50%      { opacity: .4; }
+}
+.status-label {
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--acc2);
+  font-weight: 600;
+}
+.topbar-spacer { flex: 1; }
+
+/* Mode tabs */
+.mode-tabs { display: flex; gap: 4px; }
+.mode-tab {
+  height: 28px;
+  padding: 0 14px;
+  border-radius: 4px;
+  border: 1px solid var(--bdr2);
+  background: transparent;
+  color: var(--txt2);
+  font-family: var(--ui);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all .2s;
+  display: flex; align-items: center; gap: 6px;
+}
+.mode-tab:hover { border-color: var(--acc); color: var(--txt); }
+.mode-tab.active {
+  background: var(--acc);
+  border-color: var(--acc);
+  color: #fff;
+  box-shadow: var(--glow);
+}
+.mode-tab svg { width: 12px; height: 12px; }
+
+/* Token display */
+.tok-display {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--txt3);
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+.tok-display span { color: var(--acc2); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MAIN LAYOUT
+══════════════════════════════════════════════════════════════════════════ */
+#main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ── Left sidebar ──────────────────────────────────────────────────────── */
+#sidebar {
+  width: 200px;
+  min-width: 200px;
+  max-width: 200px;
+  flex-shrink: 0;
+  background: var(--panel);
+  border-right: 1px solid var(--bdr);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.sidebar-section {
+  padding: 10px 12px 6px;
+  border-bottom: 1px solid var(--bdr);
+}
+.sidebar-label {
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--txt3);
+  font-weight: 700;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+/* Agent cards */
+.agent-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  background: var(--card);
+  border: 1px solid var(--bdr);
+  transition: border-color .2s;
+}
+.agent-card.active { border-color: var(--acc2); }
+.agent-icon {
+  width: 26px; height: 26px;
+  border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px;
+  font-family: var(--mono);
+  font-weight: bold;
+  flex-shrink: 0;
+}
+.agent-icon.primary    { background: rgba(91,110,245,.2); color: var(--acc); }
+.agent-icon.reviewer   { background: rgba(245,200,66,.15); color: var(--acc3); }
+.agent-icon.supervisor { background: rgba(61,232,160,.15); color: var(--acc2); }
+.agent-info { flex: 1; min-width: 0; }
+.agent-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--txt);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.agent-model {
+  font-size: 9px;
+  color: var(--txt3);
+  font-family: var(--mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.agent-led {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--txt3);
+  flex-shrink: 0;
+  transition: background .3s, box-shadow .3s;
+}
+.agent-led.active {
+  background: var(--acc2);
+  box-shadow: var(--glow2);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+/* Build-only sidebar section */
+#build-sidebar-section { display: none; }
+.output-label {
+  font-size: 9px;
+  letter-spacing: 2px;
+  color: var(--txt3);
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+#output-path-input {
+  width: 100%;
+  background: var(--card);
+  border: 1px solid var(--bdr2);
+  border-radius: 3px;
+  padding: 5px 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--txt);
+  outline: none;
+  transition: border-color .2s;
+}
+#output-path-input:focus { border-color: var(--acc); }
+#output-hint {
+  font-size: 9px;
+  color: var(--txt3);
+  margin-top: 4px;
+  font-family: var(--mono);
+}
+
+/* Sessions list */
+#sessions-list { flex: 1; overflow-y: auto; padding: 8px; }
+.session-item {
+  padding: 5px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  color: var(--txt2);
+  cursor: pointer;
+  border: 1px solid transparent;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all .15s;
+}
+.session-item:hover { background: var(--card); border-color: var(--bdr); color: var(--txt); }
+.session-item.active { background: var(--card); border-color: var(--acc); color: var(--acc); }
+
+/* New session btn */
+#new-session-btn {
+  margin: 8px;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px dashed var(--bdr2);
+  border-radius: 3px;
+  color: var(--txt3);
+  font-family: var(--ui);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all .2s;
+  text-align: center;
+}
+#new-session-btn:hover { border-color: var(--acc); color: var(--acc); }
+
+/* ── Centre content ────────────────────────────────────────────────────── */
+#content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* ── CHAT MODE ─────────────────────────────────────────────────────────── */
+#chat-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Welcome state */
+#chat-welcome {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--txt3);
+  pointer-events: none;
+}
+#chat-welcome .wlogo {
+  font-family: var(--ui);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 8px;
+  color: var(--bdr2);
+}
+#chat-welcome .wline {
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+/* Message bubbles */
+.msg {
+  display: flex;
+  flex-direction: column;
+  max-width: 820px;
+  animation: msgIn .15s ease-out;
+}
+@keyframes msgIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.msg.user { align-self: flex-end; }
+.msg.assistant, .msg.system, .msg.reviewer,
+.msg.supervisor, .msg.error, .msg.files { align-self: flex-start; }
+
+.msg-bubble {
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.msg.user .msg-bubble {
+  background: var(--acc);
+  color: #fff;
+  border-bottom-right-radius: 2px;
+}
+.msg.assistant .msg-bubble {
+  background: var(--card);
+  border: 1px solid var(--bdr);
+  color: var(--txt);
+  border-bottom-left-radius: 2px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.msg.system .msg-bubble {
+  background: transparent;
+  color: var(--txt3);
+  font-size: 11px;
+  font-family: var(--mono);
+  padding: 2px 0;
+}
+.msg.reviewer .msg-bubble {
+  background: rgba(245,200,66,.06);
+  border: 1px solid rgba(245,200,66,.15);
+  color: var(--acc3);
+  font-size: 11px;
+  font-family: var(--mono);
+}
+.msg.supervisor .msg-bubble {
+  background: rgba(61,232,160,.06);
+  border: 1px solid rgba(61,232,160,.15);
+  color: var(--acc2);
+  font-size: 11px;
+  font-family: var(--mono);
+}
+.msg.error .msg-bubble {
+  background: rgba(245,91,91,.08);
+  border: 1px solid rgba(245,91,91,.2);
+  color: var(--acc4);
+  font-size: 11px;
+  font-family: var(--mono);
+}
+.msg.files .msg-bubble {
+  background: rgba(61,232,160,.05);
+  border: 1px solid rgba(61,232,160,.2);
+  color: var(--acc2);
+  font-size: 11px;
+  font-family: var(--mono);
+}
+.msg-label {
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--txt3);
+  margin-bottom: 3px;
+  padding: 0 2px;
+}
+.msg.user .msg-label { align-self: flex-end; }
+
+/* Streaming cursor */
+.stream-cursor::after {
+  content: '█';
+  animation: blink .7s step-end infinite;
+  color: var(--acc);
+  font-size: .8em;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+/* Progress bar */
+#progress-bar-wrap {
+  height: 2px;
+  background: var(--bdr);
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+#progress-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--acc), var(--acc2));
+  transition: width .3s ease;
+  box-shadow: 0 0 8px var(--acc);
+}
+
+/* Chat input area */
+#chat-input-area {
+  border-top: 1px solid var(--bdr);
+  padding: 12px 16px;
+  background: var(--panel);
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-shrink: 0;
+}
+#chat-textarea {
+  flex: 1;
+  background: var(--card);
+  border: 1px solid var(--bdr2);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--txt);
+  resize: none;
+  outline: none;
+  min-height: 42px;
+  max-height: 160px;
+  line-height: 1.5;
+  transition: border-color .2s;
+  overflow-y: auto;
+}
+#chat-textarea:focus { border-color: var(--acc); }
+#chat-textarea::placeholder { color: var(--txt3); }
+
+.send-btn {
+  width: 40px; height: 40px;
+  border-radius: 6px;
+  border: none;
+  background: var(--acc);
+  color: #fff;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .2s;
+  flex-shrink: 0;
+}
+.send-btn:hover { background: #6d7ff7; box-shadow: var(--glow); }
+.send-btn:disabled { background: var(--bdr2); cursor: not-allowed; box-shadow: none; }
+.send-btn svg { width: 16px; height: 16px; }
+
+/* Clear btn */
+#clear-chat-btn {
+  height: 40px;
+  padding: 0 12px;
+  background: transparent;
+  border: 1px solid var(--bdr2);
+  border-radius: 6px;
+  color: var(--txt3);
+  font-family: var(--ui);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all .2s;
+  letter-spacing: 1px;
+  flex-shrink: 0;
+}
+#clear-chat-btn:hover { border-color: var(--acc4); color: var(--acc4); }
+
+/* ── BUILD MODE ────────────────────────────────────────────────────────── */
+#build-view {
+  flex: 1;
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#build-request-area {
+  border-bottom: 1px solid var(--bdr);
+  padding: 14px 16px;
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.build-label {
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: var(--txt3);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+#build-textarea {
+  background: var(--card);
+  border: 1px solid var(--bdr2);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--txt);
+  resize: none;
+  outline: none;
+  height: 72px;
+  line-height: 1.5;
+  transition: border-color .2s;
+  width: 100%;
+}
+#build-textarea:focus { border-color: var(--acc); }
+#build-textarea::placeholder { color: var(--txt3); }
+
+.build-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+#build-submit-btn {
+  height: 34px;
+  padding: 0 20px;
+  background: var(--acc);
+  border: none;
+  border-radius: 5px;
+  color: #fff;
+  font-family: var(--ui);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all .2s;
+  display: flex; align-items: center; gap: 6px;
+}
+#build-submit-btn:hover { background: #6d7ff7; box-shadow: var(--glow); }
+#build-submit-btn:disabled { background: var(--bdr2); cursor: not-allowed; }
+#build-cancel-btn {
+  height: 34px;
+  padding: 0 16px;
+  background: transparent;
+  border: 1px solid var(--bdr2);
+  border-radius: 5px;
+  color: var(--txt3);
+  font-family: var(--ui);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all .2s;
+  display: none;
+}
+#build-cancel-btn:hover { border-color: var(--acc4); color: var(--acc4); }
+#build-cancel-btn.visible { display: block; }
+#build-feedback-btn {
+  height: 34px;
+  padding: 0 14px;
+  background: transparent;
+  border: 1px solid var(--bdr2);
+  border-radius: 5px;
+  color: var(--txt3);
+  font-family: var(--ui);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all .2s;
+  display: none;
+}
+#build-feedback-btn:hover { border-color: var(--acc3); color: var(--acc3); }
+#build-feedback-btn.visible { display: block; }
+
+/* Feedback modal */
+#feedback-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.7);
+  z-index: 999;
+  align-items: center;
+  justify-content: center;
+}
+#feedback-modal.open { display: flex; }
+.feedback-box {
+  background: var(--card);
+  border: 1px solid var(--bdr2);
+  border-radius: 8px;
+  padding: 16px;
+  width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.6);
+}
+.feedback-box label {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--txt3);
+  text-transform: uppercase;
+}
+#feedback-text {
+  background: var(--panel);
+  border: 1px solid var(--bdr2);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--txt);
+  resize: none;
+  height: 80px;
+  outline: none;
+}
+.feedback-btns { display: flex; gap: 8px; justify-content: flex-end; }
+.fb-send-btn {
+  padding: 6px 16px;
+  background: var(--acc3);
+  border: none; border-radius: 4px;
+  color: #000; font-family: var(--ui); font-size: 12px;
+  font-weight: 700; cursor: pointer;
+}
+.fb-cancel-btn {
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid var(--bdr2); border-radius: 4px;
+  color: var(--txt2); font-family: var(--ui); font-size: 12px;
+  cursor: pointer;
+}
+
+/* Build log */
+#build-log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.blog-line {
+  padding: 2px 6px;
+  border-radius: 3px;
+  animation: msgIn .12s ease-out;
+  line-height: 1.6;
+  word-break: break-word;
+}
+.blog-line.system   { color: var(--txt3); }
+.blog-line.reviewer { color: var(--acc3); background: rgba(245,200,66,.05); }
+.blog-line.supervisor { color: var(--acc2); background: rgba(61,232,160,.05); }
+.blog-line.building { color: var(--txt); }
+.blog-line.files    { color: var(--acc2); background: rgba(61,232,160,.07); border-left: 2px solid var(--acc2); padding-left: 8px; }
+.blog-line.plan     { color: var(--acc); background: rgba(91,110,245,.06); border-left: 2px solid var(--acc); padding-left: 8px; }
+.blog-line.error    { color: var(--acc4); background: rgba(245,91,91,.07); }
+.blog-line.done     { color: var(--acc2); font-weight: bold; border-top: 1px solid var(--bdr); padding-top: 6px; margin-top: 4px; }
+
+/* Build welcome */
+#build-welcome {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--txt3);
+  pointer-events: none;
+}
+#build-welcome .wlogo { font-family: var(--ui); font-size: 22px; font-weight: 700; letter-spacing: 6px; color: var(--bdr2); }
+#build-welcome .wline { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; }
+
+/* ── Right stats panel ─────────────────────────────────────────────────── */
+#stats {
+  width: 200px;
+  min-width: 200px;
+  background: var(--panel);
+  border-left: 1px solid var(--bdr);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.stat-header {
+  font-size: 8px;
+  letter-spacing: 3px;
+  color: var(--txt3);
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  display: flex; align-items: center; gap: 5px;
+}
+.stat-header::before {
+  content: '';
+  width: 4px; height: 4px;
+  background: var(--acc);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Gauge bar */
+.gauge-row { margin-bottom: 7px; }
+.gauge-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: var(--txt3);
+  margin-bottom: 4px;
+  font-family: var(--mono);
+}
+.gauge-label span { color: var(--txt2); }
+.gauge-track {
+  height: 4px;
+  background: var(--bdr2);   /* brighter track so it's visible at 0% */
+  border-radius: 2px;
+  overflow: visible;          /* don't clip the fill */
+  position: relative;
+}
+.gauge-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width .6s ease;
+  background: var(--acc);
+  min-width: 2px;             /* always shows a sliver so track looks active */
+  position: absolute;
+  left: 0; top: 0;
+}
+.gauge-fill.warn   { background: var(--acc3); }
+.gauge-fill.crit   { background: var(--acc4); }
+.gauge-fill.green  { background: var(--acc2); }
+.gauge-fill.purple { background: var(--acc); }
+
+/* Big stat numbers */
+.stat-numbers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-top: 4px;
+}
+.stat-num-card {
+  background: var(--card);
+  border: 1px solid var(--bdr);
+  border-radius: 4px;
+  padding: 5px 6px;
+  text-align: center;
+}
+.stat-num-val {
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--acc2);
+  line-height: 1.1;
+}
+.stat-num-val.hot { color: var(--acc3); }
+.stat-num-unit {
+  font-size: 8px;
+  color: var(--txt3);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-top: 1px;
+}
+
+/* Token row */
+.tok-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.tok-card {
+  background: var(--card);
+  border: 1px solid var(--bdr);
+  border-radius: 4px;
+  padding: 5px 6px;
+  text-align: center;
+}
+.tok-val {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--acc);
+}
+.tok-lbl { font-size: 8px; color: var(--txt3); letter-spacing: 1px; }
+.tok-total {
+  background: var(--card);
+  border: 1px solid var(--bdr);
+  border-radius: 4px;
+  padding: 5px 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.tok-total-val {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--acc2);
+}
+.tok-total-lbl { font-size: 8px; color: var(--txt3); letter-spacing: 1px; }
+
+/* Quality score */
+.quality-bar-wrap {
+  height: 4px;
+  background: var(--bdr);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+.quality-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--acc2);
+  transition: width .8s ease;
+}
+.quality-lbl {
+  font-size: 8px;
+  color: var(--txt3);
+  letter-spacing: 2px;
+  text-align: center;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   UTILITY
+══════════════════════════════════════════════════════════════════════════ */
+.hidden { display: none !important; }
+
+/* Code blocks inside chat */
+.msg-bubble code {
+  background: rgba(0,0,0,.3);
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-family: var(--mono);
+  font-size: .9em;
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     TOPBAR
+══════════════════════════════════════════════════════════════════════════ -->
+<div id="topbar">
+  <div class="logo">TRINITY<span>·</span>AGENT</div>
+  <div class="status-dot" id="status-dot"></div>
+  <div class="status-label" id="status-label">CONNECTING</div>
+  <div class="topbar-spacer"></div>
+  <div class="mode-tabs">
+    <button class="mode-tab active" id="tab-chat" onclick="switchMode('chat')">
+      <svg viewBox="0 0 16 16" fill="currentColor">
+        <path d="M2 2h12v9H9l-3 3v-3H2z"/>
+      </svg>
+      CHATBOT
+    </button>
+    <button class="mode-tab" id="tab-build" onclick="switchMode('build')">
+      <svg viewBox="0 0 16 16" fill="currentColor">
+        <path d="M13 2l1 1-5 5 1 3-3-1-5 5-1-1 5-5-1-3 3 1z"/>
+      </svg>
+      AUTOBUILD
+    </button>
+  </div>
+  <div class="tok-display">
+    TOK <span id="top-tok-in">0</span>↑ <span id="top-tok-out">0</span>↓
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     MAIN
+══════════════════════════════════════════════════════════════════════════ -->
+<div id="main">
+
+  <!-- ── Left sidebar ──────────────────────────────────────────────────── -->
+  <div id="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">LLM Pipeline</div>
+
+      <div class="agent-card" id="card-primary">
+        <div class="agent-icon primary">P</div>
+        <div class="agent-info">
+          <div class="agent-name">Primary Worker</div>
+          <div class="agent-model" id="model-primary">qwen3:latest</div>
+        </div>
+        <div class="agent-led" id="led-primary"></div>
+      </div>
+
+      <div class="agent-card" id="card-reviewer">
+        <div class="agent-icon reviewer">R</div>
+        <div class="agent-info">
+          <div class="agent-name">Reviewer</div>
+          <div class="agent-model" id="model-reviewer">qwen3:latest</div>
+        </div>
+        <div class="agent-led" id="led-reviewer"></div>
+      </div>
+
+      <div class="agent-card" id="card-supervisor">
+        <div class="agent-icon supervisor">S</div>
+        <div class="agent-info">
+          <div class="agent-name">Supervisor</div>
+          <div class="agent-model" id="model-supervisor">mistral:v0.3</div>
+        </div>
+        <div class="agent-led" id="led-supervisor"></div>
+      </div>
+    </div>
+
+    <!-- Build-only: output path -->
+    <div class="sidebar-section" id="build-sidebar-section">
+      <div class="output-label">Output Path</div>
+      <input type="text" id="output-path-input"
+             value="~/trinity-projects"
+             placeholder="~/trinity-projects">
+      <div id="output-hint">Project files will be created here</div>
+    </div>
+
+    <!-- Session history (chat mode) -->
+    <div class="sidebar-section" id="sessions-section">
+      <div class="sidebar-label">Sessions</div>
+    </div>
+    <div id="sessions-list"></div>
+    <button id="new-session-btn" onclick="newSession()">+ New Session</button>
+  </div>
+
+  <!-- ── Centre ─────────────────────────────────────────────────────────── -->
+  <div id="content">
+
+    <!-- Progress bar (shared) -->
+    <div id="progress-bar-wrap">
+      <div id="progress-bar"></div>
+    </div>
+
+    <!-- CHAT VIEW -->
+    <div id="chat-view">
+      <div id="chat-messages">
+        <div id="chat-welcome">
+          <div class="wlogo">TRINITY</div>
+          <div class="wline">Local AI Agent · Type a message to begin</div>
+        </div>
+      </div>
+      <div id="chat-input-area">
+        <textarea id="chat-textarea" rows="1"
+          placeholder="Ask anything — Trinity can write files, search the web, run code…"
+          onkeydown="chatKeydown(event)"></textarea>
+        <button class="send-btn" id="chat-send-btn" onclick="sendChat()" title="Send (Enter)">
+          <svg viewBox="0 0 20 20" fill="currentColor">
+            <path d="M2 10l16-8-6 8 6 8z"/>
+          </svg>
+        </button>
+        <button id="clear-chat-btn" onclick="clearChat()">CLEAR</button>
+      </div>
+    </div>
+
+    <!-- BUILD VIEW -->
+    <div id="build-view">
+      <div id="build-request-area">
+        <div class="build-label">Project Request</div>
+        <textarea id="build-textarea"
+          placeholder="Describe what you want to build — e.g. 'A Flask REST API with SQLite, user auth, and Swagger docs'"></textarea>
+        <div class="build-controls">
+          <button id="build-submit-btn" onclick="startBuild()">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M3 2l10 6-10 6z"/>
+            </svg>
+            START BUILD
+          </button>
+          <button id="build-cancel-btn" onclick="cancelBuild()">CANCEL</button>
+          <button id="build-feedback-btn" onclick="openFeedback()">FEEDBACK</button>
+        </div>
+      </div>
+      <div id="build-log">
+        <div id="build-welcome">
+          <div class="wlogo">AUTOBUILD</div>
+          <div class="wline">Describe a project above to begin</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+
+  <!-- ── Right stats ───────────────────────────────────────────────────── -->
+  <div id="stats">
+
+    <!-- GPU -->
+    <div class="stat-section">
+      <div class="stat-header">GPU</div>
+      <div class="gauge-row">
+        <div class="gauge-label">LOAD <span id="gpu-load-txt">0%</span></div>
+        <div class="gauge-track"><div class="gauge-fill purple" id="gpu-load-bar" style="width:0%"></div></div>
+      </div>
+      <div class="gauge-row">
+        <div class="gauge-label">VRAM <span id="gpu-vram-txt">0 / 0 GB</span></div>
+        <div class="gauge-track"><div class="gauge-fill purple" id="gpu-vram-bar" style="width:0%"></div></div>
+      </div>
+      <div class="stat-numbers">
+        <div class="stat-num-card">
+          <div class="stat-num-val hot" id="gpu-temp-val">–</div>
+          <div class="stat-num-unit">°C TEMP</div>
+        </div>
+        <div class="stat-num-card">
+          <div class="stat-num-val" id="gpu-power-val">–</div>
+          <div class="stat-num-unit">W POWER</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CPU -->
+    <div class="stat-section">
+      <div class="stat-header">CPU</div>
+      <div class="gauge-row">
+        <div class="gauge-label">LOAD <span id="cpu-load-txt">0%</span></div>
+        <div class="gauge-track"><div class="gauge-fill purple" id="cpu-load-bar" style="width:0%"></div></div>
+      </div>
+      <div class="stat-numbers">
+        <div class="stat-num-card">
+          <div class="stat-num-val" id="cpu-freq-val">–</div>
+          <div class="stat-num-unit">MHZ</div>
+        </div>
+        <div class="stat-num-card">
+          <div class="stat-num-val" id="cpu-cores-val">–</div>
+          <div class="stat-num-unit">CORES</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Memory -->
+    <div class="stat-section">
+      <div class="stat-header">Memory</div>
+      <div class="gauge-row">
+        <div class="gauge-label">RAM <span id="ram-txt">0 / 0 GB</span></div>
+        <div class="gauge-track"><div class="gauge-fill green" id="ram-bar" style="width:0%"></div></div>
+      </div>
+      <div class="gauge-row">
+        <div class="gauge-label">DISK <span id="disk-txt">0 / 0 GB</span></div>
+        <div class="gauge-track"><div class="gauge-fill green" id="disk-bar" style="width:0%"></div></div>
+      </div>
+    </div>
+
+    <!-- Tokens -->
+    <div class="stat-section">
+      <div class="stat-header">Tokens</div>
+      <div class="tok-row">
+        <div class="tok-card">
+          <div class="tok-val" id="tok-in-val">0</div>
+          <div class="tok-lbl">INPUT</div>
+        </div>
+        <div class="tok-card">
+          <div class="tok-val" id="tok-out-val">0</div>
+          <div class="tok-lbl">OUTPUT</div>
+        </div>
+      </div>
+      <div class="tok-total">
+        <div class="tok-total-lbl">TOTAL</div>
+        <div class="tok-total-val" id="tok-total-val">0</div>
+      </div>
+    </div>
+
+    <!-- Quality score -->
+    <div class="stat-section">
+      <div class="stat-header">Quality Score</div>
+      <div class="quality-bar-wrap">
+        <div class="quality-bar-fill" id="quality-bar" style="width:0%"></div>
+      </div>
+      <div class="quality-lbl" id="quality-lbl">– SUPERVISOR</div>
+    </div>
+
+  </div><!-- /stats -->
+
+</div><!-- /main -->
+
+<!-- Feedback modal -->
+<div id="feedback-modal">
+  <div class="feedback-box">
+    <label>LIVE FEEDBACK TO BUILD</label>
+    <textarea id="feedback-text"
+      placeholder="Describe a change or correction for the current build step…"></textarea>
+    <div class="feedback-btns">
+      <button class="fb-cancel-btn" onclick="closeFeedback()">Cancel</button>
+      <button class="fb-send-btn"   onclick="sendFeedback()">Send</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     SCRIPTS
+══════════════════════════════════════════════════════════════════════════ -->
+<!-- socket.io v4 — matches flask-socketio 5.x / python-socketio 5.x -->
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"
+        integrity="sha384-2huIO7aKzTQLMNTSKyQWxPGzTHpFBWEsqreAB00qjBqAMqBxHK15BqHYSnPf2Yor"
+        crossorigin="anonymous"
+        onerror="window._socketIOLoadFailed=true"></script>
+<script>
+'use strict';
+
+/* ── State ──────────────────────────────────────────────────────────────── */
+let currentMode      = 'chat';
+let currentSession   = 'session-' + Date.now();
+let buildSessionId   = null;
+let isBusy           = false;     // prevents double-submit
+let streamBubble     = null;      // current streaming assistant bubble
+let streamText       = '';
+
+/* ── Socket.IO ──────────────────────────────────────────────────────────── */
+// If the socket.io CDN script failed to load, create a harmless stub so the
+// rest of the code (which calls socket.on / socket.emit) doesn't throw.
+function _makeSocketStub() {
+  return { on: () => {}, emit: () => {}, connected: false, _stub: true };
+}
+
+let socket;
+try {
+  if (window._socketIOLoadFailed || typeof io === 'undefined') {
+    console.warn('[Trinity] socket.io not loaded — using HTTP polling only');
+    socket = _makeSocketStub();
+  } else {
+    socket = io(window.location.origin, {
+      transports: ['polling', 'websocket'],   // polling first — more reliable behind proxies
+      reconnectionDelay: 2000,
+      reconnectionAttempts: 10,
+      timeout: 5000,
+    });
+  }
+} catch (e) {
+  console.warn('[Trinity] socket.io init failed:', e.message, '— using HTTP polling only');
+  socket = _makeSocketStub();
+}
+
+socket.on('connect', () => {
+  setStatus('ONLINE', true);
+  socket.emit('request_stats');
+});
+socket.on('disconnect', () => {
+  // Don't flip to OFFLINE — HTTP polling keeps stats alive independently
+});
+socket.on('connected', (d) => {
+  setStatus('ONLINE', true);
+  console.log('Trinity:', d.status);
+  socket.emit('request_stats');
+});
+socket.on('system_stats', updateStats);
+
+/* HTTP polling is the primary stats driver — runs regardless of SocketIO */
+
+socket.on('agent_status', ({ agent, state }) => setAgentState(agent, state));
+
+function setStatus(label, online) {
+  document.getElementById('status-label').textContent = label;
+  const dot = document.getElementById('status-dot');
+  dot.style.background = online ? 'var(--acc2)' : 'var(--acc4)';
+}
+
+/* ── Mode switching ─────────────────────────────────────────────────────── */
+function switchMode(mode) {
+  currentMode = mode;
+  document.getElementById('tab-chat').classList.toggle('active', mode === 'chat');
+  document.getElementById('tab-build').classList.toggle('active', mode === 'build');
+  document.getElementById('chat-view').style.display  = mode === 'chat'  ? 'flex' : 'none';
+  document.getElementById('build-view').style.display = mode === 'build' ? 'flex' : 'none';
+  document.getElementById('build-sidebar-section').style.display = mode === 'build' ? 'block' : 'none';
+  document.getElementById('sessions-section').style.display = mode === 'chat' ? 'block' : 'none';
+  document.getElementById('sessions-list').style.display = mode === 'chat' ? 'block' : 'none';
+  document.getElementById('new-session-btn').style.display = mode === 'chat' ? 'block' : 'none';
+}
+
+/* ── Sessions ────────────────────────────────────────────────────────────── */
+function renderSessions() {
+  const list = document.getElementById('sessions-list');
+  const keys = Object.keys(localStorage).filter(k => k.startsWith('trinity-session-'));
+  list.innerHTML = '';
+  if (!keys.length) return;
+  keys.sort().reverse().forEach(k => {
+    const sid  = k.replace('trinity-session-', '');
+    const name = localStorage.getItem(k) || sid;
+    const el   = document.createElement('div');
+    el.className = 'session-item' + (sid === currentSession ? ' active' : '');
+    el.textContent = name;
+    el.onclick = () => loadSession(sid);
+    list.appendChild(el);
+  });
+}
+
+function saveSessionLabel(msg) {
+  const key = 'trinity-session-' + currentSession;
+  if (!localStorage.getItem(key)) {
+    localStorage.setItem(key, msg.slice(0, 28) + (msg.length > 28 ? '…' : ''));
+    renderSessions();
+  }
+}
+
+function newSession() {
+  currentSession = 'session-' + Date.now();
+  document.getElementById('chat-messages').innerHTML = '';
+  document.getElementById('chat-messages').appendChild(buildWelcome());
+  renderSessions();
+}
+
+function loadSession(sid) {
+  currentSession = sid;
+  renderSessions();
+  // Clear DOM and fetch history from server
+  const container = document.getElementById('chat-messages');
+  container.innerHTML = '';
+  container.appendChild(buildWelcome());
+
+  fetch('/api/memory?session_id=' + encodeURIComponent(sid))
+    .then(r => r.json())
+    .then(data => {
+      const history = data.short_term || [];
+      if (!history.length) return;
+      // Remove welcome once we have messages to show
+      const w = document.getElementById('chat-welcome');
+      if (w) w.remove();
+      history.forEach(entry => {
+        if (entry.user)      appendMsg('user',      entry.user,      'YOU');
+        if (entry.assistant) appendMsg('assistant', entry.assistant, 'TRINITY');
+      });
+      scrollChat();
+    })
+    .catch(() => {}); // keep welcome on error
+}
+
+function buildWelcome() {
+  const w = document.createElement('div');
+  w.id = 'chat-welcome';
+  w.innerHTML = `
+    <div class="wlogo">TRINITY</div>
+    <div class="wline">Local AI Agent · Type a message to begin</div>`;
+  return w;
+}
+
+/* ── Auto-grow textarea ──────────────────────────────────────────────────── */
+document.getElementById('chat-textarea').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 160) + 'px';
+});
+
+/* ── Chat: send ──────────────────────────────────────────────────────────── */
+function chatKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendChat();
+  }
+}
+
+async function sendChat() {
+  if (isBusy) return;
+  const ta  = document.getElementById('chat-textarea');
+  const msg = ta.value.trim();
+  if (!msg) return;
+
+  // Remove welcome
+  const welcome = document.getElementById('chat-welcome');
+  if (welcome) welcome.remove();
+
+  ta.value = '';
+  ta.style.height = 'auto';
+  isBusy = true;
+  document.getElementById('chat-send-btn').disabled = true;
+
+  saveSessionLabel(msg);
+  appendMsg('user', msg, 'YOU');
+
+  // Create assistant bubble (will stream into it)
+  streamText   = '';
+  streamBubble = appendMsg('assistant', '', 'TRINITY', true);
+  streamBubble.querySelector('.msg-bubble').classList.add('stream-cursor');
+
+  setProgress(10);
+
+  try {
+    const resp = await fetch('/api/chat', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ message: msg, session_id: currentSession }),
+    });
+
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    const reader  = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let   buffer  = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6).trim();
+        if (raw === '[DONE]') break;
+        try {
+          handleChunk(JSON.parse(raw));
+        } catch {}
+      }
+    }
+  } catch (err) {
+    appendMsg('error', `Connection error: ${err.message}`, 'ERROR');
+  } finally {
+    finishStream();
+    isBusy = false;
+    document.getElementById('chat-send-btn').disabled = false;
+  }
+}
+
+function setAgentState(agent, state) {
+  const led   = document.getElementById(`led-${agent}`);
+  const card  = document.getElementById(`card-${agent}`);
+  const model = document.getElementById(`model-${agent}`);
+  if (!led) return;
+  const isActive = state === 'active';
+  led.classList.toggle('active', isActive);
+  card.classList.toggle('active', isActive);
+  if (model) {
+    if (!model.dataset.base) model.dataset.base = model.textContent;
+    model.textContent  = isActive ? '● RUNNING' : model.dataset.base;
+    model.style.color  = isActive ? 'var(--acc2)' : '';
+  }
+}
+
+function handleChunk(chunk) {
+  const { role, text, progress, tokens, supervisor_score } = chunk;
+
+  // Agent LED updates come through the SSE stream as agent_status chunks
+  if (role === 'agent_status') {
+    setAgentState(chunk.agent, chunk.state);
+    return;
+  }
+
+  if (progress !== undefined && progress >= 0) setProgress(progress);
+  if (tokens)   updateTokenDisplay(tokens);
+  if (supervisor_score !== undefined) updateQuality(supervisor_score);
+
+  if (role === 'assistant' && chunk.streaming) {
+    // Stream text into existing bubble
+    streamText += text;
+    if (streamBubble) {
+      const bubble = streamBubble.querySelector('.msg-bubble');
+      bubble.textContent = streamText;
+      scrollChat();
+    }
+    return;
+  }
+
+  if (role === 'done') {
+    finishStream();
+    return;
+  }
+
+  // For non-streaming roles (system, reviewer, supervisor, error, files)
+  if (role !== 'assistant') {
+    appendMsg(role, text, roleLabel(role));
+  }
+}
+
+function finishStream() {
+  if (streamBubble) {
+    streamBubble.querySelector('.msg-bubble').classList.remove('stream-cursor');
+    streamBubble = null;
+    streamText   = '';
+  }
+  setProgress(0);
+}
+
+function roleLabel(role) {
+  return { system: 'SYS', reviewer: 'REVIEWER', supervisor: 'SUPERVISOR',
+           error: 'ERROR', files: 'FILES', building: 'BUILD' }[role] || role.toUpperCase();
+}
+
+/* ── Append a message bubble ─────────────────────────────────────────────── */
+function appendMsg(role, text, label, returnEl = false) {
+  const container = document.getElementById('chat-messages');
+
+  const wrap = document.createElement('div');
+  wrap.className = `msg ${role}`;
+
+  if (label) {
+    const lbl = document.createElement('div');
+    lbl.className = 'msg-label';
+    lbl.textContent = label;
+    wrap.appendChild(lbl);
+  }
+
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+  bubble.textContent = text;
+  wrap.appendChild(bubble);
+
+  container.appendChild(wrap);
+  scrollChat();
+
+  return returnEl ? wrap : null;
+}
+
+function scrollChat() {
+  const c = document.getElementById('chat-messages');
+  c.scrollTop = c.scrollHeight;
+}
+
+/* ── Clear chat ──────────────────────────────────────────────────────────── */
+function clearChat() {
+  document.getElementById('chat-messages').innerHTML = '';
+  document.getElementById('chat-messages').appendChild(buildWelcome());
+  fetch('/api/memory/clear', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: currentSession, scope: 'short' }),
+  }).catch(() => {});
+  setProgress(0);
+}
+
+/* ── Progress bar ────────────────────────────────────────────────────────── */
+function setProgress(pct) {
+  document.getElementById('progress-bar').style.width = Math.max(0, Math.min(100, pct)) + '%';
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   BUILD MODE
+══════════════════════════════════════════════════════════════════════════ */
+async function startBuild() {
+  if (isBusy) return;
+  const req     = document.getElementById('build-textarea').value.trim();
+  const outPath = document.getElementById('output-path-input').value.trim()
+                  || '~/trinity-projects';
+  if (!req) {
+    document.getElementById('build-textarea').focus();
+    return;
+  }
+
+  // Remove welcome
+  const welcome = document.getElementById('build-welcome');
+  if (welcome) welcome.remove();
+
+  buildSessionId = 'build-' + Date.now();
+  isBusy         = true;
+
+  document.getElementById('build-submit-btn').disabled = true;
+  document.getElementById('build-cancel-btn').classList.add('visible');
+  document.getElementById('build-feedback-btn').classList.add('visible');
+
+  const log = document.getElementById('build-log');
+  log.innerHTML = '';
+  appendBuildLine('system', `▶ Starting build: "${req.slice(0,80)}${req.length>80?'…':''}"`);
+  setProgress(2);
+
+  try {
+    const resp = await fetch('/api/build', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        request:      req,
+        output_path:  outPath,
+        session_id:   buildSessionId,
+      }),
+    });
+
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    const reader  = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let   buffer  = '';
+    let   buildAccum = '';  // accumulate streaming build tokens
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6).trim();
+        if (raw === '[DONE]') break;
+        try {
+          const chunk = JSON.parse(raw);
+          handleBuildChunk(chunk, buildAccum, (a) => { buildAccum = a; });
+        } catch {}
+      }
+    }
+  } catch (err) {
+    appendBuildLine('error', `Build error: ${err.message}`);
+  } finally {
+    isBusy = false;
+    document.getElementById('build-submit-btn').disabled = false;
+    document.getElementById('build-cancel-btn').classList.remove('visible');
+    setProgress(0);
+  }
+}
+
+// Track the current streaming build line element
+let _buildStreamEl = null;
+let _buildStreamText = '';
+
+function handleBuildChunk(chunk, acc, setAcc) {
+  const { role, text, progress, tokens, final_score, files } = chunk;
+
+  if (role === 'agent_status') { setAgentState(chunk.agent, chunk.state); return; }
+
+  if (progress !== undefined && progress >= 0) setProgress(progress);
+  if (tokens)   updateTokenDisplay(tokens);
+  if (final_score !== undefined) updateQuality(final_score);
+
+  if (role === 'building' && chunk.streaming) {
+    // Stream into current build-stream line
+    _buildStreamText += text;
+    if (!_buildStreamEl) {
+      _buildStreamEl = appendBuildLine('building', _buildStreamText, true);
+    } else {
+      _buildStreamEl.textContent = _buildStreamText;
+      scrollBuildLog();
+    }
+    return;
+  }
+
+  // Flush any pending build stream
+  if (_buildStreamEl) {
+    _buildStreamEl = null;
+    _buildStreamText = '';
+  }
+
+  if (role === 'plan') {
+    try {
+      const plan = JSON.parse(text);
+      const steps = plan.steps || [];
+      appendBuildLine('plan',
+        `📋 Plan: ${steps.length} step(s) · Stack: ${plan.tech_stack || 'auto'}`);
+      steps.forEach((s, i) =>
+        appendBuildLine('plan', `  ${i+1}. ${s.name} — ${s.desc}`)
+      );
+    } catch {
+      appendBuildLine('plan', text);
+    }
+    return;
+  }
+
+  if (role === 'files') {
+    try {
+      const written = JSON.parse(text);
+      appendBuildLine('files', '📁 Files written:');
+      written.forEach(f => appendBuildLine('files', `  ✓ ${f}`));
+    } catch {
+      appendBuildLine('files', text);
+    }
+    return;
+  }
+
+  if (role === 'build_complete') {
+    appendBuildLine('done',
+      `✅ Build complete — Score: ${final_score || '?'}%  ·  Files: ${(files||[]).length}`);
+    if (files && files.length) {
+      appendBuildLine('files', 'Output files:');
+      files.forEach(f => appendBuildLine('files', `  ${f}`));
+    }
+    document.getElementById('build-feedback-btn').classList.remove('visible');
+    return;
+  }
+
+  if (text) appendBuildLine(role, text);
+}
+
+function appendBuildLine(role, text, returnEl = false) {
+  const log = document.getElementById('build-log');
+  const el  = document.createElement('div');
+  el.className = `blog-line ${role}`;
+  el.textContent = text;
+  log.appendChild(el);
+  scrollBuildLog();
+  return returnEl ? el : null;
+}
+
+function scrollBuildLog() {
+  const log = document.getElementById('build-log');
+  log.scrollTop = log.scrollHeight;
+}
+
+async function cancelBuild() {
+  if (!buildSessionId) return;
+  await fetch('/api/build/cancel', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: buildSessionId }),
+  }).catch(() => {});
+  appendBuildLine('system', '⛔ Build cancelled by user.');
+  isBusy = false;
+  document.getElementById('build-submit-btn').disabled = false;
+  document.getElementById('build-cancel-btn').classList.remove('visible');
+  document.getElementById('build-feedback-btn').classList.remove('visible');
+  setProgress(0);
+}
+
+/* ── Feedback modal ──────────────────────────────────────────────────────── */
+function openFeedback()  { document.getElementById('feedback-modal').classList.add('open'); }
+function closeFeedback() { document.getElementById('feedback-modal').classList.remove('open'); }
+
+async function sendFeedback() {
+  const text = document.getElementById('feedback-text').value.trim();
+  if (!text || !buildSessionId) { closeFeedback(); return; }
+  await fetch('/api/build/feedback', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ session_id: buildSessionId, feedback: text }),
+  }).catch(() => {});
+  appendBuildLine('reviewer', `💬 Feedback injected: ${text}`);
+  document.getElementById('feedback-text').value = '';
+  closeFeedback();
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   STATS PANEL — final, bulletproof version
+══════════════════════════════════════════════════════════════════════════ */
+
+function set(id, val) {
+  const el = document.getElementById(id);
+  if (el && val !== undefined && val !== null) el.textContent = String(val);
+}
+
+function setBar(id, rawPct, warnHigh, colorClass) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const pct = Math.min(100, Math.max(0, parseFloat(rawPct) || 0));
+  el.style.width = pct + '%';
+  let c = colorClass || 'purple';
+  if (warnHigh) c = pct > 85 ? 'crit' : pct > 65 ? 'warn' : (colorClass || 'purple');
+  el.className = 'gauge-fill ' + c;
+}
+
+function fmt(n) {
+  n = Number(n) || 0;
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+  return String(n);
+}
+
+function updateStats(s) {
+  try {
+    if (!s || typeof s !== 'object') return;
+
+    // ── GPU ──────────────────────────────────────────────────────────────
+    const g = s.gpu || {};
+    if (g.available) {
+      set('gpu-load-txt',  (g.load || 0) + '%');
+      setBar('gpu-load-bar', g.load, true, 'purple');
+      set('gpu-vram-txt',  (g.vram_used || 0) + ' / ' + (g.vram_total || 0) + ' GB');
+      setBar('gpu-vram-bar', g.vram_pct, false, 'purple');
+      set('gpu-temp-val',  g.temp !== undefined ? g.temp : '–');
+      set('gpu-power-val', g.power !== undefined ? Math.round(g.power) + 'W' : '–');
+    } else if (g.load !== undefined && g.load > 0) {
+      // Data present but available flag not yet set — show it anyway
+      set('gpu-load-txt',  (g.load || 0) + '%');
+      setBar('gpu-load-bar', g.load, true, 'purple');
+      set('gpu-vram-txt',  (g.vram_used || 0) + ' / ' + (g.vram_total || 0) + ' GB');
+      setBar('gpu-vram-bar', g.vram_pct || 0, false, 'purple');
+      set('gpu-temp-val',  g.temp || '–');
+      set('gpu-power-val', g.power ? Math.round(g.power) + 'W' : '–');
+    } else {
+      const reason = g.reason || '';
+      set('gpu-load-txt', reason.includes('not found') ? 'NO GPU' : 'INIT…');
+      setBar('gpu-load-bar', 0, false, 'purple');
+      set('gpu-vram-txt', reason.includes('not found') ? 'nvidia-smi not found' : 'Waiting for GPU…');
+      setBar('gpu-vram-bar', 0, false, 'purple');
+      set('gpu-temp-val', '–');
+      set('gpu-power-val', '–');
+    }
+
+    // ── CPU ──────────────────────────────────────────────────────────────
+    const c = s.cpu || {};
+    set('cpu-load-txt', (c.load || 0) + '%');
+    setBar('cpu-load-bar', c.load, true, 'purple');
+    set('cpu-freq-val',  c.freq_mhz || '–');
+    set('cpu-cores-val', c.cores   || c.phys || '–');
+
+    // ── RAM ──────────────────────────────────────────────────────────────
+    const r = s.ram || {};
+    set('ram-txt', (r.used_gb || 0) + ' / ' + (r.total_gb || 0) + ' GB');
+    setBar('ram-bar', r.percent, false, 'green');
+
+    // ── Disk ─────────────────────────────────────────────────────────────
+    const d = s.disk || {};
+    set('disk-txt', (d.used_gb || 0) + ' / ' + (d.total_gb || 0) + ' GB');
+    setBar('disk-bar', d.percent, false, 'green');
+
+    // ── Tokens ───────────────────────────────────────────────────────────
+    const t = s.tokens || {};
+    set('tok-in-val',    fmt(t.in    || 0));
+    set('tok-out-val',   fmt(t.out   || 0));
+    set('tok-total-val', fmt(t.total || 0));
+    set('top-tok-in',    fmt(t.in    || 0));
+    set('top-tok-out',   fmt(t.out   || 0));
+
+  } catch(err) {
+    console.error('[Trinity] updateStats error:', err, 'raw data:', s);
+  }
+}
+
+function updateTokenDisplay(tok) {
+  if (!tok) return;
+  set('tok-in-val',    fmt(tok.in    || 0));
+  set('tok-out-val',   fmt(tok.out   || 0));
+  set('tok-total-val', fmt(tok.total || 0));
+  set('top-tok-in',    fmt(tok.in    || 0));
+  set('top-tok-out',   fmt(tok.out   || 0));
+}
+
+function updateQuality(score) {
+  const bar = document.getElementById('quality-bar');
+  if (!bar) return;
+  bar.style.width      = Math.min(100, score) + '%';
+  bar.style.background = score >= 85 ? 'var(--acc2)' : score >= 65 ? 'var(--acc3)' : 'var(--acc4)';
+  set('quality-lbl', score + '% SUPERVISOR');
+}
+
+/* ── Model names ─────────────────────────────────────────────────────────── */
+async function loadModelNames() {
+  try {
+    const r = await fetch('/api/models', { cache: 'no-store' });
+    if (!r.ok) { setTimeout(loadModelNames, 4000); return; }
+    const m = await r.json();
+    ['primary','reviewer','supervisor'].forEach(role => {
+      if (!m[role]) return;
+      const el = document.getElementById('model-' + role);
+      if (el) { el.textContent = m[role]; el.dataset.base = m[role]; }
+    });
+  } catch { setTimeout(loadModelNames, 4000); }
+}
+
+/* ── Ollama banner (independent of stats) ────────────────────────────────── */
+let _bannerUp = false;
+function showOllamaBanner(msg) {
+  if (_bannerUp) return; _bannerUp = true;
+  const b = document.createElement('div');
+  b.id = 'ollama-banner';
+  b.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);' +
+    'background:#1a0a0a;border:1px solid var(--acc4);color:var(--acc4);' +
+    'font-family:var(--mono);font-size:11px;padding:10px 18px;border-radius:6px;' +
+    'z-index:9999;box-shadow:0 4px 24px rgba(245,91,91,.3);max-width:560px;' +
+    'text-align:center;line-height:1.7;';
+  b.innerHTML = '⚠ ' + msg + '<br>' +
+    '<span style="color:var(--txt3)">Run: <code style="color:var(--acc3)">ollama serve</code> then refresh.</span>' +
+    '<span id="ob-dismiss" style="display:block;margin-top:5px;color:var(--txt3);cursor:pointer;font-size:10px">' +
+    '[ dismiss ]</span>';
+  document.body.appendChild(b);
+  document.getElementById('ob-dismiss').onclick = () => { b.remove(); _bannerUp = false; };
+}
+function hideOllamaBanner() {
+  const b = document.getElementById('ollama-banner');
+  if (b) { b.remove(); _bannerUp = false; }
+}
+
+/* ── Stats polling — primary stats driver, runs every 1.5s ──────────────── */
+let _statsFails = 0;
+let _statsOnline = false;
+async function pollStats() {
+  try {
+    const r = await fetch('/api/system', { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    if (typeof window._statsLogCount === 'undefined') window._statsLogCount = 0;
+    if (window._statsLogCount < 3) {
+      console.log('[Trinity] /api/system response:', JSON.stringify(data));
+      window._statsLogCount++;
+    }
+    updateStats(data);
+    if (_statsFails >= 5) hideOllamaBanner();   // auto-recover
+    _statsFails = 0;
+    if (!_statsOnline) {                        // set ONLINE on first successful poll
+      _statsOnline = true;
+      setStatus('ONLINE', true);
+    }
+  } catch(e) {
+    _statsFails++;
+    console.warn('[Trinity] /api/system poll failed (' + _statsFails + '):', e.message);
+    if (_statsFails >= 5) {
+      _statsOnline = false;
+      setStatus('OFFLINE', false);
+      showOllamaBanner('Trinity server unreachable at ' + window.location.host);
+    }
+  }
+}
+
+/* ── Ollama check — separate, runs once, retries every 10 s ─────────────── */
+async function checkOllama() {
+  try {
+    const r = await fetch('/api/models', { cache: 'no-store' });
+    if (r.ok) { hideOllamaBanner(); _bannerUp = false; }
+    else showOllamaBanner('Ollama is not running. ');
+  } catch { showOllamaBanner('Ollama is not running. '); }
+  setTimeout(checkOllama, 10000);   // re-check every 10 s automatically
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════════════════════════════════ */
+switchMode('chat');
+renderSessions();
+loadModelNames();
+checkOllama();
+
+// Immediate fetch + poll every 1.5 s — primary stats driver, independent of SocketIO
+pollStats();
+setInterval(pollStats, 1500);
+
+</script>
+</body>
+</html>

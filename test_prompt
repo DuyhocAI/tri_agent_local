@@ -1,0 +1,57 @@
+Build a real-time karaoke and vocal recording system with the following complete feature set:
+Input Sources:
+
+Accept a YouTube URL and automatically download the beat/instrumental using yt-dlp (audio only, best quality)
+Accept local MP3 or WAV file via drag-and-drop or file picker
+Show waveform preview of the loaded beat
+
+Key Detection & Autotune:
+
+Automatically detect the musical key of the beat (e.g. C Major, A minor) using librosa pitch analysis
+Display detected key and BPM in the UI
+Real-time autotune on microphone input: snap vocal pitch to the nearest note in the detected key
+Autotune intensity slider: 0% (dry) to 100% (hard tune / T-Pain effect)
+Formant preservation so the voice doesn't sound robotic at low intensity
+
+Real-time Vocal Effects Chain (applied live while singing):
+
+Noise gate: suppress background noise below a threshold
+Noise suppression / de-noise filter
+EQ: 5-band parametric (sub, low, mid, high-mid, presence) with visual display
+Compressor / limiter with threshold, ratio, attack, release controls
+Echo / delay: tempo-synced to BPM with feedback and mix controls
+Reverb: room size, damping, wet/dry mix
+Vocal doubler / chorus effect
+All effects toggleable on/off individually with bypass buttons
+
+Playback & Recording:
+
+Play the beat through speakers while capturing microphone input simultaneously
+Mix beat + processed vocal in real-time (adjustable beat/vocal volume balance)
+Record the final mixed output (beat + processed vocals) to a WAV file
+Also option to record vocals-only (dry and/or processed) as separate track
+Show live recording timer and waveform while recording
+Export recorded file with filename and timestamp
+
+UI Requirements:
+
+Dark-themed professional audio workstation UI (DAW-style)
+VU meters for input level, vocal level, and master output
+Real-time pitch display showing current note being sung
+Beat waveform timeline with playhead
+All controls visible on one screen without scrolling (use panels/tabs if needed)
+Keyboard shortcuts: Space = play/stop beat, R = start/stop recording, M = mute mic
+ 
+Tech Stack:
+
+Backend: Python with Flask, sounddevice for audio I/O, numpy for DSP, librosa for pitch/key detection, yt-dlp for YouTube download, scipy for filters
+Frontend: Single HTML file with Web Audio API for visualization, WebSocket for real-time communication with backend
+All dependencies listed in requirements.txt with pinned versions
+README with setup instructions and how to run
+
+Testing requirements:
+
+Unit tests for key detection accuracy
+Unit tests for each DSP effect function
+Integration test: load a sample audio file, run key detection, verify output format
+Test that Flask server starts and all API endpoints return correct status codes

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hermes HCI — Login</title>
+<style>
+:root{--bg:#07080d;--card:#10121e;--bdr:#1e2235;--acc:#5b6ef5;--txt:#c8cfe8;--mu:#5a6080;--err:#f55b5b}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:'Courier New',monospace;
+     min-height:100vh;display:flex;align-items:center;justify-content:center}
+.card{background:var(--card);border:1px solid var(--bdr);border-radius:8px;
+      padding:2rem 2.5rem;width:360px}
+h1{color:var(--acc);font-size:1.1rem;letter-spacing:3px;margin-bottom:.3rem}
+.sub{font-size:.7rem;color:var(--mu);letter-spacing:2px;margin-bottom:2rem}
+label{font-size:.75rem;color:var(--mu);letter-spacing:1px;display:block;margin-bottom:.4rem}
+input{width:100%;background:#0d0f1a;border:1px solid var(--bdr);border-radius:4px;
+      color:var(--txt);font-family:inherit;font-size:.9rem;padding:.6rem .8rem;outline:none}
+input:focus{border-color:var(--acc)}
+button{width:100%;margin-top:1.2rem;padding:.7rem;background:var(--acc);
+       border:none;border-radius:4px;color:#fff;font-family:inherit;
+       font-size:.9rem;letter-spacing:1px;cursor:pointer}
+button:hover{opacity:.85}
+.err{color:var(--err);font-size:.8rem;margin-top:.8rem;text-align:center}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>◈ HERMES HCI</h1>
+  <div class="sub">CONTROL INTERFACE</div>
+  <form method="post" action="/hci/login">
+    <label>PASSWORD</label>
+    <input type="password" name="password" autofocus autocomplete="current-password">
+    <button type="submit">ENTER</button>
+    {% if error %}<div class="err">{{ error }}</div>{% endif %}
+  </form>
+</div>
+</body>
+</html>

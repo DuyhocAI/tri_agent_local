@@ -1,0 +1,23 @@
+version: "1"
+domain: "web"
+
+skills:
+  - name: web_search
+    description: "Search the web using DuckDuckGo and return real page content (no API key needed)"
+    destructive: false
+    handler: skills.handlers.web_search
+    parameters:
+      q:
+        type: string
+        required: true
+        description: "Search query"
+
+  - name: fetch_url
+    description: "Fetch and return the readable text content of any URL"
+    destructive: false
+    handler: skills.handlers.fetch_url
+    parameters:
+      url:
+        type: string
+        required: true
+        description: "Full URL to fetch"

@@ -1,0 +1,27 @@
+version: "1"
+domain: "system"
+
+skills:
+  - name: get_datetime
+    description: "Get the current date and time in multiple formats"
+    destructive: false
+    handler: skills.handlers.get_datetime
+    parameters: {}
+
+  - name: run_command
+    description: "Run a shell command (python, pytest, npm, node — safe prefixes only)"
+    destructive: true
+    handler: skills.handlers.run_command
+    parameters:
+      cmd:
+        type: string
+        required: true
+        description: "Command to run (must start with an allowed prefix)"
+      cwd:
+        type: string
+        required: false
+        description: "Working directory for the command"
+      timeout:
+        type: integer
+        required: false
+        description: "Timeout in seconds (default 60)"

@@ -1,0 +1,24 @@
+# Core (unchanged)
+flask==3.1.1
+flask-socketio==5.5.1
+psutil==7.0.0
+requests==2.32.3
+gevent==24.11.1
+gevent-websocket==0.10.1
+
+# P1: Skill Repository
+pyyaml>=6.0
+rank-bm25>=0.2
+
+# P3: Memory (already built-in sqlite3)
+# No extra deps — HermesMemory uses stdlib sqlite3
+
+# P4: Subconscious health checks
+apscheduler>=3.10
+
+# P5: HCI Control Interface
+flask-limiter>=3.5
+pywinpty>=2.0     # Windows PTY for terminal tab (optional — graceful fallback if missing)
+
+# Already used implicitly — make explicit
+beautifulsoup4>=4.12
