@@ -166,6 +166,66 @@ def _strip_tool_tags(text: str) -> str:
     return _TOOL_RE.sub("", text).strip()
 
 
+# ── Tools description (shared by all specialist agents) ──────────────────────
+
+_TOOLS_DESCRIPTION = """
+You have access to the following tools. Emit them inside <TOOL> tags anywhere in your response.
+
+  Read a file:
+    <TOOL>{"name":"read_file","args":{"path":"C:/path/to/file.py"}}</TOOL>
+
+  Write / create a file  ← use for NEW files or FULL rewrites:
+    <TOOL>{"name":"write_file","args":{"path":"C:/path/to/file.py","content":"...full file content..."}}</TOOL>
+
+  Edit a file  ← PREFERRED for modifying existing code (surgical find-and-replace):
+    <TOOL>{"name":"edit_file","args":{"path":"C:/path/to/file.py","old_text":"exact text to find","new_text":"replacement text"}}</TOOL>
+
+  Append to a file  ← add content to end of existing file:
+    <TOOL>{"name":"append_file","args":{"path":"C:/path/to/file.py","content":"...text to append..."}}</TOOL>
+
+  Delete a file or folder (requires supervisor approval):
+    <TOOL>{"name":"delete_file","args":{"path":"C:/path/to/target"}}</TOOL>
+
+  List directory contents:
+    <TOOL>{"name":"list_dir","args":{"path":"C:/some/dir"}}</TOOL>
+
+  Check whether a path exists:
+    <TOOL>{"name":"file_exists","args":{"path":"C:/some/path"}}</TOOL>
+
+  Search the web (returns real page content, not just a snippet):
+    <TOOL>{"name":"web_search","args":{"q":"your search query"}}</TOOL>
+
+  Fetch a specific URL and read its full text:
+    <TOOL>{"name":"fetch_url","args":{"url":"https://example.com/docs/page"}}</TOOL>
+
+  Get current date/time:
+    <TOOL>{"name":"get_datetime","args":{}}</TOOL>
+
+  Run a shell command (python, pytest, npm, node — safe prefixes only):
+    <TOOL>{"name":"run_command","args":{"cmd":"pytest tests/ -v","cwd":"/path/to/project","timeout":60}}</TOOL>
+
+MANDATORY RULES — follow these exactly:
+
+1. CODE RESPONSES — always save code to disk:
+   - NEW file or full rewrite → use write_file with full content.
+   - MODIFYING existing code → read_file first, then use edit_file (one surgical change per call).
+   - APPENDING to a file → use append_file.
+   - After every write/edit/append, tell the user the exact path.
+   - Never just print code without also writing it — printing alone is not enough.
+
+2. EDITING WORKFLOW:
+   a. read_file to see exact current content.
+   b. edit_file with old_text = exact substring to replace, new_text = new code.
+   c. Chain multiple edit_file calls for multiple changes in one response.
+
+3. WEB SEARCH: Use web_search for anything current or uncertain, then fetch_url on the best result.
+
+4. CHAINING: Emit multiple <TOOL> tags in one response — they execute in order.
+
+5. FILE OPERATIONS: Always use tools for file/folder tasks. Never guess at file contents.
+"""
+
+
 # ── BaseAgent ─────────────────────────────────────────────────────────────────
 
 class BaseAgent:

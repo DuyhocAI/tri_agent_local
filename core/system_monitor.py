@@ -1,5 +1,5 @@
 """
-TRINITY AGENT — core/system_monitor.py
+HERMES AGENT — core/system_monitor.py
 
 Combines the best parts of both previous versions:
 
@@ -30,7 +30,7 @@ import psutil
 
 from config import MONITOR_CONFIG
 
-logger = logging.getLogger("trinity.monitor")
+logger = logging.getLogger("hermes.monitor")
 
 _IS_WINDOWS = platform.system() == "Windows"
 _DISK_ROOT  = "C:\\" if _IS_WINDOWS else "/"

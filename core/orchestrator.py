@@ -43,7 +43,11 @@ from agents.base_agent import (
     _strip_tool_tags,
     _TOOL_RE,
     _MAX_TOOL_ROUNDS,
+    _TOOLS_DESCRIPTION,
 )
+from agents.builder_agent import BuilderAgent
+from agents.writer_agent  import WriterAgent
+from agents.analyst_agent import AnalystAgent
 
 logger = logging.getLogger("hermes.orchestrator")
 
@@ -411,95 +415,6 @@ def _resolve_models() -> dict[str, str]:
 
 # ── System prompt helpers ─────────────────────────────────────────────────────
 
-def _now_str() -> str:
-    return datetime.now().strftime("%A, %B %d, %Y  %H:%M:%S")
-
-
-_TOOLS_DESCRIPTION = """
-You have access to the following tools. Emit them inside <TOOL> tags anywhere in your response.
-
-  Read a file:
-    <TOOL>{"name":"read_file","args":{"path":"C:/path/to/file.py"}}</TOOL>
-
-  Write / create a file  ← use for NEW files or FULL rewrites:
-    <TOOL>{"name":"write_file","args":{"path":"C:/path/to/file.py","content":"...full file content..."}}</TOOL>
-
-  Edit a file  ← PREFERRED for modifying existing code (surgical find-and-replace):
-    <TOOL>{"name":"edit_file","args":{"path":"C:/path/to/file.py","old_text":"exact text to find","new_text":"replacement text"}}</TOOL>
-
-  Append to a file  ← add content to end of existing file:
-    <TOOL>{"name":"append_file","args":{"path":"C:/path/to/file.py","content":"...text to append..."}}</TOOL>
-
-  Delete a file or folder (requires supervisor approval):
-    <TOOL>{"name":"delete_file","args":{"path":"C:/path/to/target"}}</TOOL>
-
-  List directory contents:
-    <TOOL>{"name":"list_dir","args":{"path":"C:/some/dir"}}</TOOL>
-
-  Check whether a path exists:
-    <TOOL>{"name":"file_exists","args":{"path":"C:/some/path"}}</TOOL>
-
-  Search the web (returns real page content, not just a snippet):
-    <TOOL>{"name":"web_search","args":{"q":"your search query"}}</TOOL>
-
-  Fetch a specific URL and read its full text:
-    <TOOL>{"name":"fetch_url","args":{"url":"https://example.com/docs/page"}}</TOOL>
-
-  Get current date/time:
-    <TOOL>{"name":"get_datetime","args":{}}</TOOL>
-
-  Run a shell command (python, pytest, npm, node — safe prefixes only):
-    <TOOL>{"name":"run_command","args":{"cmd":"pytest tests/ -v","cwd":"/path/to/project","timeout":60}}</TOOL>
-
-MANDATORY RULES — follow these exactly:
-
-1. CODE RESPONSES — always save code to disk:
-   - NEW file or full rewrite → use write_file with full content.
-   - MODIFYING existing code → read_file first, then use edit_file (one surgical change per call).
-   - APPENDING to a file → use append_file.
-   - After every write/edit/append, tell the user the exact path.
-   - Never just print code without also writing it — printing alone is not enough.
-
-2. EDITING WORKFLOW:
-   a. read_file to see exact current content.
-   b. edit_file with old_text = exact substring to replace, new_text = new code.
-   c. Chain multiple edit_file calls for multiple changes in one response.
-
-3. WEB SEARCH: Use web_search for anything current or uncertain, then fetch_url on the best result.
-
-4. CHAINING: Emit multiple <TOOL> tags in one response — they execute in order.
-
-5. FILE OPERATIONS: Always use tools for file/folder tasks. Never guess at file contents.
-"""
-
-
-def _build_system_prompt(
-    token_budget: int = 128000,
-    long_mem: list | None = None,
-    agent_name: str = "Hermes",
-    user_facts: list | None = None,
-) -> str:
-    now   = _now_str()
-    facts = ""
-    # Combine session long_term memory with cross-session user_facts
-    all_facts = list(long_mem or []) + list(user_facts or [])
-    if all_facts:
-        facts = "\nKnown about user: " + "; ".join(
-            f"{m.get('topic','?')}: {m.get('value','')}"
-            for m in all_facts[-8:]
-        )
-
-    return (
-        f"You are {agent_name}, a powerful local AI assistant running on the user's own PC.\n"
-        f"Current date and time: {now}\n"
-        f"{facts}\n\n"
-        f"Target response length: ~{token_budget} tokens. "
-        f"For code requests, always write COMPLETE working code — never truncate.\n"
-        f"If the user asks to update or modify a project that was previously built, "
-        f"use read_file to inspect existing files first, then edit_file for surgical changes, "
-        f"then run_command to run tests and verify your changes work.\n"
-        f"{_TOOLS_DESCRIPTION}"
-    )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -541,6 +456,11 @@ class Orchestrator(BaseAgent):
             destructive_set=_DESTRUCTIVE_TOOLS,
         )
 
+        # Specialist agents — models/options/registry synced after _boot resolves them
+        self._builder  = BuilderAgent(socketio, monitor)
+        self._writer   = WriterAgent(socketio, monitor)
+        self._analyst  = AnalystAgent(socketio, monitor)
+
         threading.Thread(
             target=self._boot, daemon=True, name="hermes-model-resolver"
         ).start()
@@ -551,6 +471,14 @@ class Orchestrator(BaseAgent):
         resolved = _resolve_models()
         MODELS = resolved
         self.models = resolved   # keep BaseAgent in sync
+
+        # Propagate resolved models and shared resources to specialist agents
+        for specialist in (self._builder, self._writer, self._analyst):
+            specialist.models              = self.models
+            specialist._primary_options    = self._primary_options
+            specialist._supervisor_options = self._supervisor_options
+            specialist.skill_registry      = self.skill_registry
+
         print()
         print("  ── Hermes model resolution ───────────────────")
         for role, name in self.models.items():
@@ -558,6 +486,13 @@ class Orchestrator(BaseAgent):
         print(f"  ✓  skills       → {len(self.skill_registry)} loaded")
         print("  ─────────────────────────────────────────────")
         print()
+
+    def _get_specialist(self, role: str) -> BaseAgent:
+        return {
+            "builder":  self._builder,
+            "writer":   self._writer,
+            "analyst":  self._analyst,
+        }.get(role, self._builder)
 
     # ── Agent routing (P2 seed) ───────────────────────────────────────────────
 
@@ -659,10 +594,8 @@ class Orchestrator(BaseAgent):
         yield self._sys(f"{agent_display} generating response…", 22)
         yield self._agent_chunk("primary", "active")
 
-        system_prompt = _build_system_prompt(
-            token_budget, long_mem, agent_name=f"Hermes-{agent_display}",
-            user_facts=user_facts
-        )
+        specialist    = self._get_specialist(agent_role)
+        system_prompt = specialist.get_system_prompt(token_budget, long_mem, user_facts)
         ctx = [{"role": "system", "content": system_prompt}]
         for m in short_mem[-(RESOURCE_LIMITS["max_context_msgs"]):]:
             if isinstance(m, dict) and "user" in m and "assistant" in m:
@@ -673,7 +606,7 @@ class Orchestrator(BaseAgent):
         self.monitor.add_tokens(sum(max(1, len(m["content"]) // 4) for m in ctx), 0)
 
         full_response = ""
-        for item, sentinel in self._run_tool_loop(ctx, 22, 70):
+        for item, sentinel in specialist.run(ctx, 22, 70):
             if sentinel is not None:
                 full_response = sentinel
             elif item is not None:
@@ -711,7 +644,7 @@ class Orchestrator(BaseAgent):
                 {"role": "user",      "content": f"Please improve: {sup['refinement']}"},
             ]
             full_response = ""
-            for item, sentinel in self._run_tool_loop(refine_ctx, 80, 92):
+            for item, sentinel in specialist.run(refine_ctx, 80, 92):
                 if sentinel is not None:
                     full_response = sentinel
                 elif item is not None:

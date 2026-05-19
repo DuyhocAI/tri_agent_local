@@ -1,5 +1,5 @@
 """
-TRINITY AGENT — config.py
+HERMES AGENT — config.py
 Single source of truth for all hardware and pipeline settings.
 
 Hardware target: RTX 3060 12GB VRAM · 32 GB RAM · (CPU model auto-detected)

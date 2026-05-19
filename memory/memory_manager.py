@@ -1,5 +1,5 @@
 """
-TRINITY AGENT — memory/memory_manager.py  (v2 — SQLite backend)
+HERMES AGENT — memory/memory_manager.py  (v2 — SQLite backend)
 
 WHY this replaces the flat-JSON design
 ──────────────────────────────────────
@@ -24,7 +24,7 @@ Schema
   long_term   id · session_id · topic · value · ts
                 UNIQUE(session_id, topic) ON CONFLICT REPLACE
 
-Storage: ~/.trinity-agent/memory/trinity_memory.db
+Storage: ~/.hermes/memory/session_memory.db
 
 Public API is a drop-in replacement — all method signatures unchanged.
 """
@@ -37,13 +37,13 @@ from pathlib import Path
 
 from config import MEMORY_CONFIG
 
-logger = logging.getLogger("trinity.memory")
+logger = logging.getLogger("hermes.memory")
 
 # ── Storage ───────────────────────────────────────────────────────────────────
 
-MEMORY_DIR = Path.home() / ".trinity-agent" / "memory"
+MEMORY_DIR = Path.home() / ".hermes" / "memory"
 MEMORY_DIR.mkdir(parents=True, exist_ok=True)
-DB_PATH = MEMORY_DIR / "trinity_memory.db"
+DB_PATH = MEMORY_DIR / "session_memory.db"
 
 SHORT_MAX      = MEMORY_CONFIG["short_term_max"]   # 30
 LONG_MAX       = MEMORY_CONFIG["long_term_max"]    # 200

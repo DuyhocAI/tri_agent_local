@@ -12,7 +12,7 @@ import time
 import logging
 import threading
 
-logger = logging.getLogger('trinity.resource_guard')
+logger = logging.getLogger('hermes.resource_guard')
 
 class ResourceGuard:
     def __init__(self, vram_threshold_pct=85, ram_threshold_pct=90):

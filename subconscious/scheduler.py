@@ -139,9 +139,8 @@ class SubconsciousScheduler:
     def _check_resources(self) -> dict:
         try:
             if self._resource_guard:
-                ok = self._resource_guard.check_resources_ok()
-                return {"name": "resources", "ok": ok,
-                        "detail": "RAM/VRAM within limits" if ok else "Resource pressure detected"}
+                ok, detail = self._resource_guard.check_resources_ok()
+                return {"name": "resources", "ok": ok, "detail": detail}
             # Fallback: use monitor directly
             stats = self._monitor.get_stats()
             ram_pct  = stats.get("ram", {}).get("percent", 0)
