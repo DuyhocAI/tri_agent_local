@@ -127,7 +127,10 @@ def cron_run(job_id: str):
         return jsonify({"error": "Scheduler not running"}), 503
     try:
         from datetime import datetime as _dt
-        scheduler._scheduler.get_job(job_id).modify(next_run_time=_dt.now())
+        job = scheduler._scheduler.get_job(job_id)
+        if job is None:
+            return jsonify({"error": f"Job not found: {job_id}"}), 404
+        job.modify(next_run_time=_dt.now())
         return jsonify({"ok": True, "job_id": job_id})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
