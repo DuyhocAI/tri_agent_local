@@ -1,75 +1,130 @@
-# Agent Local Project
+# Hermes Agent
 
-## 📌 Tổng quan
-Project là hệ thống AI local với khả năng chat, build, và quản lý memory. Hỗ trợ đa model thông qua `MODEL_CANDIDATES` và cấu hình linh hoạt qua `SERVER_CONFIG`.
+Hệ thống AI local đa tác nhân (multi-agent) chạy hoàn toàn trên máy tính cá nhân, không cần kết nối cloud. Được xây dựng trên [Ollama](https://ollama.com) + Flask, Hermes phối hợp ba agent độc lập — **Primary**, **Reviewer**, **Supervisor** — để tạo ra câu trả lời và code chất lượng cao thông qua vòng lặp tự kiểm tra.
 
-## 🚀 Cài đặt
+---
 
-### 1. Yêu cầu
-- Python 3.10+
-- Flask 2.3.2
-- gunicorn 20.1.0
-- Ollama (cài đặt qua `OllamaSetup.exe`)
+## Kiến trúc
 
-### 2. Cấu hình
-- Chỉnh sửa `config.py` để thiết lập:
-  - `MODEL_CANDIDATES`: Danh sách model hỗ trợ
-  - `SERVER_CONFIG`: Cấu hình server (port, cors, v.v.)
-- Kiểm tra file `verify_config.py` để xác minh cấu hình
-
-### 3. Cài đặt Ollama
-1. Chạy `OllamaSetup.exe` (kích thước ~2GB)
-2. Cấu hình model qua CLI: `ollama run <model_name>`
-
-### 4. Tùy chọn
-- Chạy script PowerShell: `_write_orch.ps1` để orchestrate deployment
-
-## 📡 Sử dụng
-
-### 1. Chạy server
-```bash
-python server.py
-``` 
-
-### 2. Giao diện
-- Truy cập: `http://localhost:5000`
-- Tương tác qua:
-  - Chat stream: `/api/chat`
-  - Build: `/api/build`
-  - Memory: `/api/memory`
-
-### 3. API
-- **Chat**: POST `/api/chat` (trả về SSE)
-- **Build**: POST `/api/build` (trả về SSE)
-- **Memory**: GET `/api/memory` (theo `session_id`)
-
-## 📁 Cấu trúc thư mục
 ```
-agent_local/
-├── core/                # Logic cốt lõi
-├── memory/              # Quản lý memory
-├── templates/           # Frontend (HTML/JS/CSS)
-├── tests/               # Unit tests
-├── config.py            # Cấu hình chính
-├── verify_config.py     # Kiểm tra config
-├── requirements.txt     # Dependency
-├── _write_orch.ps1      # Script PowerShell
-├── OllamaSetup.exe      # Cài đặt Ollama
-└── server.py            # Backend chính
-``` 
+Người dùng
+    │
+    ▼
+┌─────────────┐     SSE stream      ┌──────────────────────────────────┐
+│  Web UI     │ ◄────────────────── │          Orchestrator            │
+│  (port 7799)│                     │                                  │
+└─────────────┘                     │  Primary  →  Reviewer            │
+                                    │      └──────────► Supervisor      │
+┌─────────────┐                     │                                  │
+│  HCI Panel  │ ◄─── SocketIO ────► │  MemoryManager  │  SystemMonitor │
+│  /hci/      │                     │  HermesMemory   │  SubScheduler  │
+└─────────────┘                     └──────────────────────────────────┘
+                                                │
+                                          Ollama API
+                                     (localhost:11434)
+```
 
-## ⚠️ Lưu ý
-1. File `server.py` hiện bị truncate ở dòng `memory_man` – cần kiểm tra nội dung đầy đủ
-2. Cấu hình CORS đã mở rộng cho mọi origin (`cors_allowed_origins="*"`)
-3. Hỗ trợ cancel cho chat/build qua `/api/build/cancel` và tương ứng
+| Agent | Vai trò | Model mặc định |
+|---|---|---|
+| Primary | Xử lý chat & sinh code | `llama3.1:8b` |
+| Reviewer | Kiểm tra chất lượng output | `mistral:v0.3` |
+| Supervisor | Đánh giá cuối & quality gate | `qwen3` |
 
-## 🤝 Góp ý
-- Tối ưu memory manager (hiện đang bị truncate)
-- Thêm middleware logging
-- Tách config thành file riêng
-- Hỗ trợ cancel cho chat stream
+Mỗi model được load/unload khỏi VRAM sau mỗi lượt gọi (`keep_alive=0` cho Reviewer/Supervisor), đảm bảo chỉ một model chiếm VRAM tại một thời điểm.
 
-## 📚 Tài liệu
-- Đọc `agent.md` để hiểu định dạng input/output
+---
 
-Phản hồi nếu bạn cần chỉnh sửa hoặc thêm thông tin cụ thể!
+## Tính năng
+
+- **Chat streaming** — phản hồi real-time qua Server-Sent Events
+- **Build mode** — sinh toàn bộ project code theo yêu cầu, có feedback loop
+- **Memory hệ thống** — short-term (per session) + long-term + cross-session facts
+- **HCI Dashboard** — giao diện quản trị bảo vệ bằng mật khẩu tại `/hci/`
+- **System monitor** — theo dõi CPU, RAM, VRAM realtime qua SocketIO
+- **Subconscious Scheduler** — tác vụ nền tự động chạy định kỳ
+- **Skill system** — kỹ năng định nghĩa bằng YAML, tự động phát hiện và nạp
+- **Multi-GPU profile** — cấu hình sẵn cho RTX 3060 12GB và GTX 1650 4GB
+
+---
+
+## Yêu cầu
+
+- Python 3.10+
+- [Ollama](https://ollama.com/download) đã cài và đang chạy
+- NVIDIA GPU (khuyến nghị 6GB+ VRAM) hoặc CPU
+
+---
+
+## Cài đặt
+
+```bash
+# 1. Clone repo
+git clone https://github.com/DuyhocAI/tri_agent_local.git
+cd tri_agent_local
+
+# 2. Cài dependencies
+pip install -r requirements.txt
+
+# 3. Kéo model (ví dụ)
+ollama pull llama3.1:8b
+ollama pull mistral
+
+# 4. (Tùy chọn) Cấu hình mật khẩu HCI
+$env:HERMES_HCI_PASSWORD_HASH = python -c "import hashlib; print(hashlib.sha256(b'matkhau').hexdigest())"
+
+# 5. Chạy
+python server.py
+```
+
+Truy cập `http://localhost:7799` để sử dụng.
+
+---
+
+## Cấu hình
+
+Tất cả cài đặt nằm trong [`config.py`](config.py):
+
+| Biến | Mô tả |
+|---|---|
+| `MODEL_CANDIDATES` | Danh sách model ưu tiên cho từng role |
+| `PRIMARY_OPTIONS` | Tham số Ollama cho Primary agent |
+| `REVIEWER_OPTIONS` | Tham số Ollama cho Reviewer |
+| `SUPERVISOR_OPTIONS` | Tham số Ollama cho Supervisor |
+| `SERVER_CONFIG` | Host/port của server |
+| `MEMORY_CONFIG` | Giới hạn và TTL cho memory |
+
+Chạy `python verify_config.py` để kiểm tra cấu hình trước khi khởi động.
+
+---
+
+## API
+
+| Endpoint | Method | Mô tả |
+|---|---|---|
+| `/api/chat` | POST | Chat streaming (SSE) |
+| `/api/build` | POST | Sinh code theo yêu cầu (SSE) |
+| `/api/build/cancel` | POST | Hủy build đang chạy |
+| `/api/memory` | GET | Xem memory của session |
+| `/api/memory/clear` | POST | Xóa memory |
+| `/api/system` | GET | Thống kê hệ thống |
+| `/api/models` | GET | Danh sách model đã resolve |
+| `/hci/` | GET | HCI Dashboard |
+
+---
+
+## Cấu trúc thư mục
+
+```
+hermes/
+├── agents/          # BaseAgent và các specialist agent
+├── core/            # Orchestrator, SystemMonitor, ResourceGuard, Retry
+├── hci/             # HCI Blueprint (dashboard, auth, terminal, API)
+├── memory/          # MemoryManager + HermesMemory
+├── skills/          # Skill definitions (YAML) + SkillRegistry
+├── subconscious/    # SubconsciousScheduler (tác vụ nền)
+├── templates/       # Frontend HTML/JS/CSS
+├── tests/           # Unit tests
+├── config.py        # Cấu hình toàn hệ thống
+├── server.py        # Entry point
+└── requirements.txt
+```
