@@ -95,8 +95,9 @@ def _stream_chat(model: str, messages: list, options: dict):
             break
 
 
-def _collect(model: str, prompt: str, options: dict, monitor=None) -> str:
+def _collect(model: str, prompt: str, options: dict, monitor=None, role: str = "") -> str:
     """Collect /api/generate streaming response as a single string."""
+    _t0 = time.time()
     payload = {
         "model":      model,
         "prompt":     prompt,
@@ -113,7 +114,8 @@ def _collect(model: str, prompt: str, options: dict, monitor=None) -> str:
         raise OllamaUnavailableError()
     except requests.exceptions.Timeout:
         raise OllamaUnavailableError("Ollama timed out — model may still be loading")
-    full = ""
+    full   = ""
+    _e_tok = 0
     for raw in resp.iter_lines():
         if not raw:
             continue
@@ -124,6 +126,7 @@ def _collect(model: str, prompt: str, options: dict, monitor=None) -> str:
         delta = obj.get("response", "")
         done  = obj.get("done", False)
         p_tok = obj.get("prompt_eval_count", 0) if done else 0
+        e_tok = obj.get("eval_count", 0) if done else 0
         if delta:
             full += delta
             if monitor:
@@ -131,7 +134,15 @@ def _collect(model: str, prompt: str, options: dict, monitor=None) -> str:
         if done and monitor and p_tok:
             monitor.add_tokens(p_tok, 0)
         if done:
+            _e_tok = e_tok
             break
+    if role:
+        try:
+            from core.metrics import log_request
+            log_request(role, model, round((time.time() - _t0) * 1000, 1),
+                        _e_tok or max(1, len(full) // 4), success=True)
+        except Exception:
+            pass
     return full
 
 
@@ -311,6 +322,7 @@ class BaseAgent:
                 prompt,
                 self._supervisor_options,
                 self.monitor,
+                role="supervisor",
             )
             j = _parse_json(result, {"approve": True, "reason": ""})
             return j.get("approve", True), j.get("reason", "")
@@ -350,7 +362,9 @@ class BaseAgent:
             # Stream from primary LLM
             try:
                 _pending = ""
-                for delta, done, p_tok, _ in _stream_chat(
+                _e_tok   = 0
+                _t0      = time.time()
+                for delta, done, p_tok, e_tok in _stream_chat(
                     self.models.get("primary", ""),
                     messages,
                     self._primary_options,
@@ -380,11 +394,18 @@ class BaseAgent:
                     if done:
                         if p_tok:
                             self.monitor.add_tokens(p_tok, 0)
+                        _e_tok = e_tok
                         if _pending and not _pending.strip().startswith("<TOOL>"):
                             clean = _TOOL_RE.sub("", _pending).strip()
                             if clean:
                                 yield self._tok_chunk("assistant", clean, progress), None
                         break
+                try:
+                    from core.metrics import log_request
+                    log_request("primary", self.models.get("primary", ""),
+                                round((time.time() - _t0) * 1000, 1), _e_tok, success=True)
+                except Exception:
+                    pass
             except Exception as e:
                 yield self._err(f"Primary LLM error: {e}", progress), None
                 break

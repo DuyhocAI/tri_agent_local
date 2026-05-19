@@ -556,7 +556,8 @@ class Orchestrator(BaseAgent):
         rev_text = "{}"
         try:
             rev_text = _collect(
-                self.models["reviewer"], rev_prompt, REVIEWER_OPTIONS, self.monitor
+                self.models["reviewer"], rev_prompt, REVIEWER_OPTIONS, self.monitor,
+                role="reviewer",
             )
         except Exception as e:
             yield self._err(f"Reviewer error: {e}", 5)
@@ -624,7 +625,8 @@ class Orchestrator(BaseAgent):
         sup_text = '{"approved":true,"score":85,"issues":[],"refinement":""}'
         try:
             sup_text = _collect(
-                self.models["supervisor"], sup_prompt, SUPERVISOR_OPTIONS, self.monitor
+                self.models["supervisor"], sup_prompt, SUPERVISOR_OPTIONS, self.monitor,
+                role="supervisor",
             )
         except Exception as e:
             yield self._err(f"Supervisor error: {e}", 74)
@@ -668,7 +670,8 @@ class Orchestrator(BaseAgent):
         self.monitor.add_tokens(max(1, len(mem_prompt) // 4), 0)
         try:
             mem_text = _collect(
-                self.models["reviewer"], mem_prompt, REVIEWER_OPTIONS, self.monitor
+                self.models["reviewer"], mem_prompt, REVIEWER_OPTIONS, self.monitor,
+                role="reviewer",
             )
             mem = _parse_json(mem_text, {})
             if mem.get("long_term") and isinstance(mem["long_term"], dict):
@@ -740,7 +743,8 @@ class Orchestrator(BaseAgent):
         safety = {"safe": True, "warnings": []}
         try:
             st = _collect(
-                self.models["supervisor"], safety_prompt, SUPERVISOR_OPTIONS, self.monitor
+                self.models["supervisor"], safety_prompt, SUPERVISOR_OPTIONS, self.monitor,
+                role="supervisor",
             )
             safety = _parse_json(st, safety)
         except Exception as e:
@@ -768,7 +772,7 @@ class Orchestrator(BaseAgent):
                 "num_predict": 2048,
                 "keep_alive": "0",
                 "temperature": 0.2,
-            }, self.monitor)
+            }, self.monitor, role="primary")
             plan = _parse_json(pt, plan)
         except Exception as e:
             yield self._err(f"Planning error: {e}", 8)
@@ -842,7 +846,8 @@ class Orchestrator(BaseAgent):
             sq = {"complete": True, "score": 80, "issue": ""}
             try:
                 st2 = _collect(
-                    self.models["supervisor"], sq_prompt, SUPERVISOR_OPTIONS, self.monitor
+                    self.models["supervisor"], sq_prompt, SUPERVISOR_OPTIONS, self.monitor,
+                    role="supervisor",
                 )
                 sq = _parse_json(st2, sq)
             except Exception:
@@ -1037,7 +1042,8 @@ class Orchestrator(BaseAgent):
         final_score = 80
         try:
             ft = _collect(
-                self.models["supervisor"], final_prompt, SUPERVISOR_OPTIONS, self.monitor
+                self.models["supervisor"], final_prompt, SUPERVISOR_OPTIONS, self.monitor,
+                role="supervisor",
             )
             fd = _parse_json(ft, {"score": 80, "issues": [], "summary": ""})
             final_score = fd.get("score", 80)
