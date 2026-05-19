@@ -97,53 +97,57 @@ def _stream_chat(model: str, messages: list, options: dict):
 
 def _collect(model: str, prompt: str, options: dict, monitor=None, role: str = "") -> str:
     """Collect /api/generate streaming response as a single string."""
-    _t0 = time.time()
-    payload = {
-        "model":      model,
-        "prompt":     prompt,
-        "stream":     True,
-        "options":    {k: v for k, v in options.items() if k != "keep_alive"},
-        "keep_alive": options.get("keep_alive", "0"),
-    }
-    try:
-        resp = requests.post(
-            f"{OLLAMA_URL}/api/generate", json=payload, stream=True, timeout=_TIMEOUT
-        )
-        resp.raise_for_status()
-    except requests.exceptions.ConnectionError:
-        raise OllamaUnavailableError()
-    except requests.exceptions.Timeout:
-        raise OllamaUnavailableError("Ollama timed out — model may still be loading")
+    _t0    = time.time()
     full   = ""
     _e_tok = 0
-    for raw in resp.iter_lines():
-        if not raw:
-            continue
+    _ok    = False
+    try:
+        payload = {
+            "model":      model,
+            "prompt":     prompt,
+            "stream":     True,
+            "options":    {k: v for k, v in options.items() if k != "keep_alive"},
+            "keep_alive": options.get("keep_alive", "0"),
+        }
         try:
-            obj = json.loads(raw)
-        except Exception:
-            continue
-        delta = obj.get("response", "")
-        done  = obj.get("done", False)
-        p_tok = obj.get("prompt_eval_count", 0) if done else 0
-        e_tok = obj.get("eval_count", 0) if done else 0
-        if delta:
-            full += delta
-            if monitor:
-                monitor.add_tokens(0, max(1, len(delta) // 4))
-        if done and monitor and p_tok:
-            monitor.add_tokens(p_tok, 0)
-        if done:
-            _e_tok = e_tok
-            break
-    if role:
-        try:
-            from core.metrics import log_request
-            log_request(role, model, round((time.time() - _t0) * 1000, 1),
-                        _e_tok or max(1, len(full) // 4), success=True)
-        except Exception:
-            pass
-    return full
+            resp = requests.post(
+                f"{OLLAMA_URL}/api/generate", json=payload, stream=True, timeout=_TIMEOUT
+            )
+            resp.raise_for_status()
+        except requests.exceptions.ConnectionError:
+            raise OllamaUnavailableError()
+        except requests.exceptions.Timeout:
+            raise OllamaUnavailableError("Ollama timed out — model may still be loading")
+        for raw in resp.iter_lines():
+            if not raw:
+                continue
+            try:
+                obj = json.loads(raw)
+            except Exception:
+                continue
+            delta = obj.get("response", "")
+            done  = obj.get("done", False)
+            p_tok = obj.get("prompt_eval_count", 0) if done else 0
+            e_tok = obj.get("eval_count", 0) if done else 0
+            if delta:
+                full += delta
+                if monitor:
+                    monitor.add_tokens(0, max(1, len(delta) // 4))
+            if done and monitor and p_tok:
+                monitor.add_tokens(p_tok, 0)
+            if done:
+                _e_tok = e_tok
+                break
+        _ok = True
+        return full
+    finally:
+        if role:
+            try:
+                from core.metrics import log_request
+                log_request(role, model, round((time.time() - _t0) * 1000, 1),
+                            _e_tok or max(1, len(full) // 4), success=_ok)
+            except Exception:
+                pass
 
 
 def _parse_json(text: str, fallback: dict) -> dict:
@@ -360,10 +364,10 @@ class BaseAgent:
             )
 
             # Stream from primary LLM
+            _t0 = time.time()
             try:
                 _pending = ""
                 _e_tok   = 0
-                _t0      = time.time()
                 for delta, done, p_tok, e_tok in _stream_chat(
                     self.models.get("primary", ""),
                     messages,
@@ -407,6 +411,12 @@ class BaseAgent:
                 except Exception:
                     pass
             except Exception as e:
+                try:
+                    from core.metrics import log_request
+                    log_request("primary", self.models.get("primary", ""),
+                                round((time.time() - _t0) * 1000, 1), 0, success=False)
+                except Exception:
+                    pass
                 yield self._err(f"Primary LLM error: {e}", progress), None
                 break
 

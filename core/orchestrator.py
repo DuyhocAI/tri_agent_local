@@ -452,6 +452,10 @@ class Orchestrator(BaseAgent):
             destructive_set=_DESTRUCTIVE_TOOLS,
         )
 
+        # Resource guard (VRAM/RAM watchdog + audio monitor)
+        from core.resource_guard import get_guard
+        self._resource_guard = get_guard()
+
         # Specialist agents — models/options/registry synced after _boot resolves them
         self._builder  = BuilderAgent(socketio, monitor)
         self._writer   = WriterAgent(socketio, monitor)
@@ -542,48 +546,33 @@ class Orchestrator(BaseAgent):
             )
             return
 
-        # ── Step 1: Reviewer — strategy + budget ─────────────────────────────
+        self.monitor.reset_tokens()
+        _rg_ok, _rg_msg = self._resource_guard.check_resources_ok()
+        if not _rg_ok:
+            yield self._c("supervisor", f"⚠ Resource warning: {_rg_msg}", 2)
+
+        # ── Step 1: Reviewer — strategy + budget (computed locally, no LLM call) ──
         yield self._sys("Reviewer analysing request…", 5)
         yield self._agent_chunk("reviewer", "active")
 
-        short_mem = memory_manager.get_short_term(session_id)
-        long_mem  = memory_manager.get_long_term(session_id)
+        short_mem  = memory_manager.get_short_term(session_id)
+        long_mem   = memory_manager.get_long_term(session_id)
         user_facts = hermes_memory.get_user_facts() if hermes_memory else []
 
-        rev_prompt = _p_reviewer_chat(user_message, short_mem, long_mem)
-        self.monitor.add_tokens(max(1, len(rev_prompt) // 4), 0)
+        _np         = PRIMARY_OPTIONS.get("num_predict", -1)
+        _budget_cap = _np if _np > 0 else 128_000
 
-        rev_text = "{}"
-        try:
-            rev_text = _collect(
-                self.models["reviewer"], rev_prompt, REVIEWER_OPTIONS, self.monitor,
-                role="reviewer",
-            )
-        except Exception as e:
-            yield self._err(f"Reviewer error: {e}", 5)
+        _is_code = any(kw in user_message.lower() for kw in (
+            "code", "write", "implement", "build", "leetcode",
+            "algorithm", "function", "class", "script", "program",
+            "create", "make", "develop", "fix", "debug", "refactor",
+        ))
+        strategy     = "code" if _is_code else "direct"
+        token_budget = _budget_cap if _is_code else max(300, min(512, _budget_cap))
+        agent_role   = self.route(user_message)
 
         yield self._agent_chunk("reviewer", "idle")
 
-        rev = _parse_json(rev_text, {"strategy": "direct", "token_budget": 128000})
-
-        # num_predict=-1 means "unlimited" in Ollama — treat it as a large cap
-        _np = PRIMARY_OPTIONS.get("num_predict", -1)
-        _budget_cap = _np if _np > 0 else 128_000
-
-        strategy = rev.get("strategy", "direct")
-        if strategy in ("code", "elaborate") or any(
-            kw in user_message.lower()
-            for kw in ("code", "write", "implement", "build", "create", "leetcode",
-                       "algorithm", "function", "class", "script", "program")
-        ):
-            token_budget = _budget_cap
-            strategy     = "code"
-        else:
-            token_budget = max(300, min(int(rev.get("token_budget", _budget_cap)),
-                                        _budget_cap))
-
-        # Determine agent name for routing display
-        agent_role = rev.get("route_override") or self.route(user_message)
         agent_display = {"builder": "Builder", "writer": "Writer",
                          "analyst": "Analyst"}.get(agent_role, "Builder")
 
@@ -688,12 +677,14 @@ class Orchestrator(BaseAgent):
 
         yield self._agent_chunk("reviewer", "idle")
 
-        # Log skill usage for analytics
+        # Compress session into a cross-session episode summary
         if hermes_memory:
+            _rev_model   = self.models.get("reviewer", "")
+            _rev_options = REVIEWER_OPTIONS
             threading.Thread(
-                target=hermes_memory.add_episode,
-                args=(session_id, f"User: {user_message[:100]}"),
-                kwargs={"agent": self.route(user_message)},
+                target=hermes_memory.compress_session,
+                args=(session_id, memory_manager,
+                      lambda p: _collect(_rev_model, p, _rev_options)),
                 daemon=True,
             ).start()
 
@@ -730,6 +721,7 @@ class Orchestrator(BaseAgent):
             self._active[session_id] = False
             return
 
+        self.monitor.reset_tokens()
         output_dir = Path(output_path).expanduser().resolve()
         output_dir.mkdir(parents=True, exist_ok=True)
         built_files: list[str] = []
@@ -1281,23 +1273,6 @@ def _smoke_test(files: list[str], output_dir: Path) -> list[dict]:
 # ══════════════════════════════════════════════════════════════════════════════
 #  PROMPT FUNCTIONS
 # ══════════════════════════════════════════════════════════════════════════════
-
-def _p_reviewer_chat(user_msg: str, short_mem: list, long_mem: list) -> str:
-    is_code = any(kw in user_msg.lower() for kw in
-                  ("code", "write", "implement", "build", "leetcode",
-                   "algorithm", "function", "class", "script", "program",
-                   "create", "make", "develop", "fix", "debug", "refactor"))
-    strategy     = "code" if is_code else "direct"
-    token_budget = 128000 if is_code else 512
-
-    lk = [m.get("topic", "") for m in long_mem[-5:] if m.get("topic")]
-    relevant = [t for t in lk if any(w in user_msg.lower() for w in t.lower().split())]
-    keys_json = json.dumps(relevant[:3])
-    return (
-        f'Respond with ONLY this JSON object, no other text, no thinking:\n'
-        f'{{"strategy":"{strategy}","token_budget":{token_budget},"memory_keys":{keys_json}}}'
-    )
-
 
 def _p_supervisor_chat(user_msg: str, response: str) -> str:
     return (
