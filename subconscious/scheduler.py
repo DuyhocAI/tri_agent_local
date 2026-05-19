@@ -154,7 +154,8 @@ class SubconsciousScheduler:
     def _check_audio(self) -> dict:
         try:
             if self._resource_guard and hasattr(self._resource_guard, "check_audio_services"):
-                ok = self._resource_guard.check_audio_services()
+                services = self._resource_guard.check_audio_services()
+                ok = all(v == "running" for v in services.values())
                 if not ok:
                     # Attempt auto-restart (existing logic in resource_guard)
                     try:
@@ -163,8 +164,9 @@ class SubconsciousScheduler:
                                 "detail": "Auto-restarted audio services"}
                     except Exception:
                         pass
+                stopped = [k for k, v in services.items() if v != "running"]
                 return {"name": "audio", "ok": ok,
-                        "detail": "OK" if ok else "Audio services not running"}
+                        "detail": "OK" if ok else f"Stopped: {', '.join(stopped)}"}
             return {"name": "audio", "ok": True, "detail": "Skipped (no resource guard)"}
         except Exception as e:
             return {"name": "audio", "ok": False, "detail": str(e)}
