@@ -5,8 +5,13 @@ HCI Control Interface:         http://localhost:7799/hci/
 """
 
 import json
+import sys
 import time
 from pathlib import Path
+
+# Ensure UTF-8 output on Windows (box-drawing chars in banner)
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8")
 
 from flask import Flask, Response, jsonify, render_template, request
 from flask_socketio import SocketIO, emit

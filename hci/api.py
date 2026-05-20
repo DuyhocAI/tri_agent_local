@@ -14,7 +14,7 @@ from flask import Blueprint, jsonify, request, current_app
 
 from hci.auth import hci_login_required, csrf_required
 
-api_bp = Blueprint("hci_api", __name__, url_prefix="/hci/api")
+api_bp = Blueprint("hci_api", __name__, url_prefix="/api")
 
 # Paths the file browser is allowed to read/write — home dir + project dir.
 _SAFE_ROOTS = (Path.home(), Path(".").resolve())
