@@ -478,6 +478,7 @@ class Orchestrator(BaseAgent):
             specialist._primary_options    = self._primary_options
             specialist._supervisor_options = self._supervisor_options
             specialist.skill_registry      = self.skill_registry
+            specialist._hermes_memory      = None  # set per-call in run_chat/run_build
 
         print()
         print("  ── Hermes model resolution ───────────────────")
@@ -547,6 +548,9 @@ class Orchestrator(BaseAgent):
             return
 
         self.monitor.reset_tokens()
+        for _spec in (self._builder, self._writer, self._analyst):
+            _spec._hermes_memory = hermes_memory
+
         _rg_ok, _rg_msg = self._resource_guard.check_resources_ok()
         if not _rg_ok:
             yield self._c("supervisor", f"⚠ Resource warning: {_rg_msg}", 2)
@@ -721,6 +725,9 @@ class Orchestrator(BaseAgent):
             return
 
         self.monitor.reset_tokens()
+        for _spec in (self._builder, self._writer, self._analyst):
+            _spec._hermes_memory = hermes_memory
+
         _rg_ok, _rg_msg = self._resource_guard.check_resources_ok()
         if not _rg_ok:
             yield self._c("supervisor", f"⚠ Resource warning: {_rg_msg}", 2)
@@ -839,52 +846,6 @@ class Orchestrator(BaseAgent):
             built_files.extend(written)
             if written:
                 yield self._c("files", json.dumps(written), base_pct + 5)
-
-            yield self._agent_chunk("supervisor", "active")
-            sq_prompt = _p_supervisor_step(step, step_output, written)
-            self.monitor.add_tokens(max(1, len(sq_prompt) // 4), 0)
-            sq = {"complete": True, "score": 80, "issue": ""}
-            try:
-                st2 = _collect(
-                    self.models["supervisor"], sq_prompt, SUPERVISOR_OPTIONS, self.monitor,
-                    role="supervisor",
-                )
-                sq = _parse_json(st2, sq)
-            except Exception:
-                pass
-            yield self._agent_chunk("supervisor", "idle")
-
-            if not sq.get("complete", True) and sq.get("issue"):
-                yield self._c("supervisor",
-                               f"Quality issue: {sq['issue']} — retrying…", base_pct + 3)
-                yield self._agent_chunk("primary", "active")
-                retry_prompt = (
-                    step_prompt +
-                    f"\n\nFix this problem: {sq['issue']}\nRewrite affected files completely."
-                )
-                self.monitor.add_tokens(max(1, len(retry_prompt) // 4), 0)
-                retry_out = ""
-                try:
-                    _t0 = time.time(); _e_tok = 0
-                    for delta, done, p_tok, e_tok in _stream_chat(
-                        self.models["primary"],
-                        [{"role": "user", "content": retry_prompt}],
-                        PRIMARY_OPTIONS,
-                    ):
-                        if delta:
-                            retry_out += delta
-                            self.monitor.add_tokens(0, max(1, len(delta) // 4))
-                        if done:
-                            if p_tok:
-                                self.monitor.add_tokens(p_tok, 0)
-                            _e_tok = e_tok
-                            break
-                    built_files.extend(_write_files(retry_out, output_dir))
-                    from core.metrics import log_request
-                    log_request("primary", self.models["primary"],
-                                round((time.time() - _t0) * 1000, 1), _e_tok, success=True)
-                except Exception as e:
-                    yield self._err(f"Retry error: {e}", base_pct + 3)
 
         # Phase 3.5: Smoke-test loop
         MAX_FIX_ROUNDS = 3
@@ -1293,11 +1254,11 @@ def _p_supervisor_chat(user_msg: str, response: str) -> str:
 
 def _p_memory_update(user_msg: str, response: str) -> str:
     return (
-        f"Conversation:\nUser: {user_msg[:250]}\nAssistant: {response[:250]}\n\n"
-        "Did the user reveal their name, a preference, or a persistent fact?\n"
-        "If YES reply with ONLY this JSON (fill in real values):\n"
-        '{"topic":"TOPIC","value":"VALUE"}\n\n'
-        "If NO reply with ONLY: null"
+        f"User: {user_msg[:200]}\nAssistant: {response[:200]}\n\n"
+        "Reply with ONLY one of:\n"
+        '- If user revealed name/preference/fact: {"topic":"TOPIC","value":"VALUE"}\n'
+        "- Otherwise: null\n"
+        "No explanation. No markdown. One line only."
     )
 
 

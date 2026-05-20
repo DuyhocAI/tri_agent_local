@@ -151,13 +151,25 @@ def _collect(model: str, prompt: str, options: dict, monitor=None, role: str = "
 
 
 def _parse_json(text: str, fallback: dict) -> dict:
-    """Extract the first JSON object from text. Returns fallback on failure."""
+    """Extract the first valid JSON object from text. Returns fallback on failure."""
+    text = re.sub(r"```[a-z]*", "", text).replace("```", "").strip()
     try:
-        m = re.search(r"\{.*\}", text, re.DOTALL)
-        if m:
-            return json.loads(m.group())
+        obj = json.loads(text)
+        if isinstance(obj, dict):
+            return obj
     except Exception:
         pass
+    starts = [m.start() for m in re.finditer(r"\{", text)]
+    ends   = [m.end()   for m in re.finditer(r"\}", text)]
+    for s in starts:
+        for e in ends:
+            if e > s:
+                try:
+                    obj = json.loads(text[s:e])
+                    if isinstance(obj, dict):
+                        return obj
+                except Exception:
+                    continue
     return fallback
 
 
@@ -265,6 +277,7 @@ class BaseAgent:
         self._primary_options: dict = {}
         self._supervisor_options: dict = {}
         self.skill_registry = None  # SkillRegistry injected by subclass
+        self._hermes_memory = None  # HermesMemory injected by Orchestrator
 
     # ── Chunk factories ───────────────────────────────────────────────────────
 
@@ -434,6 +447,7 @@ class BaseAgent:
 
                 yield self._c("system", f"🔧 Calling tool: {name}({args})", progress), None
 
+                _skill_t0 = time.time()
                 if registry and registry.is_destructive(name):
                     approved, reason = self._sup_approve_tool(name, args)
                     if not approved:
@@ -449,6 +463,15 @@ class BaseAgent:
                     result = registry.execute(name, args) if registry else ToolResult(
                         False, "No skill registry"
                     )
+
+                _skill_ms = round((time.time() - _skill_t0) * 1000, 1)
+                hm = getattr(self, "_hermes_memory", None)
+                if hm:
+                    try:
+                        hm.log_skill_usage(name, agent=type(self).__name__,
+                                           success=result.ok, latency_ms=_skill_ms)
+                    except Exception:
+                        pass
 
                 status = "✓" if result.ok else "✗"
                 yield self._c(
