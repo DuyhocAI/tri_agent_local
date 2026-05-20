@@ -548,6 +548,7 @@ class Orchestrator(BaseAgent):
             return
 
         self.monitor.reset_tokens()
+        self._hermes_memory = hermes_memory
         for _spec in (self._builder, self._writer, self._analyst):
             _spec._hermes_memory = hermes_memory
 
@@ -725,6 +726,7 @@ class Orchestrator(BaseAgent):
             return
 
         self.monitor.reset_tokens()
+        self._hermes_memory = hermes_memory
         for _spec in (self._builder, self._writer, self._analyst):
             _spec._hermes_memory = hermes_memory
 
@@ -1184,8 +1186,11 @@ def _smoke_test(files: list[str], output_dir: Path) -> list[dict]:
                     results.append({"file": rel, "ok": True, "result": f"syntax OK ({size:,} bytes)"})
                 else:
                     lines = (r.stderr or r.stdout).strip().splitlines()
-                    err = lines[-1][:140] if lines else "(no output)"
-                    results.append({"file": rel, "ok": False, "result": f"JS error: {err}"})
+                    err_line = next(
+                        (l for l in lines if "Error" in l or "error" in l),
+                        lines[0] if lines else "(no output)",
+                    )
+                    results.append({"file": rel, "ok": False, "result": f"JS error: {err_line[:140]}"})
             except Exception as e:
                 results.append({"file": rel, "ok": False, "result": f"node check failed: {e}"})
 
@@ -1372,16 +1377,6 @@ def _p_build_step(project: str, step: dict, plan: dict, built: list, feedback: s
         "complete file content here\n"
         "</FILE>\n\n"
         "Repeat for every file in this step. Zero prose outside FILE tags."
-    )
-
-
-def _p_supervisor_step(step: dict, output: str, written: list) -> str:
-    return (
-        f"Step: {step.get('name')} — {step.get('desc')}\n"
-        f"Expected: {step.get('files', [])}  Written: {written}\n"
-        f"Preview: {output[:400]}\n\n"
-        "Reply ONLY with JSON:\n"
-        '{"complete":true,"score":80,"issue":""}'
     )
 
 
