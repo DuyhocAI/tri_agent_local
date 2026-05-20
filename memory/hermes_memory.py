@@ -93,18 +93,17 @@ class HermesMemory:
     def _conn(self) -> sqlite3.Connection:
         con = sqlite3.connect(str(self._db_path), timeout=10)
         con.row_factory = sqlite3.Row
-        con.execute("PRAGMA journal_mode=WAL")
         return con
 
     # ── User facts ────────────────────────────────────────────────────────────
 
-    def get_user_facts(self, user_id: str = "local") -> list[dict]:
-        """Return all known facts about a user, sorted by most recent."""
+    def get_user_facts(self, user_id: str = "local", limit: int = 20) -> list[dict]:
+        """Return the most recent facts about a user, capped to avoid prompt bloat."""
         with self._conn() as con:
             rows = con.execute(
                 "SELECT topic, value, confidence, ts FROM user_facts "
-                "WHERE user_id = ? ORDER BY ts DESC",
-                (user_id,),
+                "WHERE user_id = ? ORDER BY ts DESC LIMIT ?",
+                (user_id, limit),
             ).fetchall()
         return [dict(r) for r in rows]
 

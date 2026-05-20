@@ -604,43 +604,44 @@ class Orchestrator(BaseAgent):
 
         yield self._agent_chunk("primary", "idle")
 
-        # ── Step 3: Supervisor — quality check ───────────────────────────────
-        yield self._sys("Supervisor evaluating quality…", 74)
-        yield self._agent_chunk("supervisor", "active")
+        # ── Step 3: Supervisor — quality check (skipped for direct/short responses) ──
+        sup = {"approved": True, "score": 85, "issues": [], "refinement": ""}
+        if strategy == "code":
+            yield self._sys("Supervisor evaluating quality…", 74)
+            yield self._agent_chunk("supervisor", "active")
 
-        sup_prompt = _p_supervisor_chat(user_message, full_response)
-        self.monitor.add_tokens(max(1, len(sup_prompt) // 4), 0)
+            sup_prompt = _p_supervisor_chat(user_message, full_response)
+            self.monitor.add_tokens(max(1, len(sup_prompt) // 4), 0)
 
-        sup_text = '{"approved":true,"score":85,"issues":[],"refinement":""}'
-        try:
-            sup_text = _collect(
-                self.models["supervisor"], sup_prompt, SUPERVISOR_OPTIONS, self.monitor,
-                role="supervisor",
-            )
-        except Exception as e:
-            yield self._err(f"Supervisor error: {e}", 74)
+            sup_text = '{"approved":true,"score":85,"issues":[],"refinement":""}'
+            try:
+                sup_text = _collect(
+                    self.models["supervisor"], sup_prompt, SUPERVISOR_OPTIONS, self.monitor,
+                    role="supervisor",
+                )
+            except Exception as e:
+                yield self._err(f"Supervisor error: {e}", 74)
 
-        yield self._agent_chunk("supervisor", "idle")
+            yield self._agent_chunk("supervisor", "idle")
 
-        sup = _parse_json(sup_text, {"approved": True, "score": 85,
-                                     "issues": [], "refinement": ""})
-        if sup.get("issues"):
-            yield self._c("supervisor", "Issues: " + "; ".join(sup["issues"]), 78)
+            sup = _parse_json(sup_text, sup)
+            if sup.get("issues") and isinstance(sup["issues"], list):
+                yield self._c("supervisor", "Issues: " + "; ".join(sup["issues"]), 78)
 
-        if not sup.get("approved", True) and sup.get("refinement"):
-            yield self._c("supervisor", f"Refining: {sup['refinement']}", 80)
-            yield self._agent_chunk("primary", "active")
-            refine_ctx = ctx + [
-                {"role": "assistant", "content": _strip_tool_tags(full_response)},
-                {"role": "user",      "content": f"Please improve: {sup['refinement']}"},
-            ]
-            full_response = ""
-            for item, sentinel in specialist.run(refine_ctx, 80, 92):
-                if sentinel is not None:
-                    full_response = sentinel
-                elif item is not None:
-                    yield item
-            yield self._agent_chunk("primary", "idle")
+            if not sup.get("approved", True) and sup.get("refinement"):
+                yield self._c("supervisor", f"Refining: {sup['refinement']}", 80)
+                yield self._agent_chunk("primary", "active")
+                refine_ctx = ctx + [
+                    {"role": "assistant", "content": _strip_tool_tags(full_response)},
+                    {"role": "user",      "content": f"Please improve: {sup['refinement']}"},
+                ]
+                full_response = ""
+                for item, sentinel in specialist.run(refine_ctx, 80, 92):
+                    if sentinel is not None:
+                        full_response = sentinel
+                    elif item is not None:
+                        yield item
+                yield self._agent_chunk("primary", "idle")
 
         # ── Step 4: Reviewer — memory update ─────────────────────────────────
         yield self._sys("Updating memory…", 93)
