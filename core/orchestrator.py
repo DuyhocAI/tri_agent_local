@@ -679,12 +679,12 @@ class Orchestrator(BaseAgent):
 
         # Compress session into a cross-session episode summary
         if hermes_memory:
-            _rev_model   = self.models.get("reviewer", "")
-            _rev_options = REVIEWER_OPTIONS
+            _rev_model      = self.models.get("reviewer", "")
+            _summary_opts   = {**REVIEWER_OPTIONS, "num_predict": 512}
             threading.Thread(
                 target=hermes_memory.compress_session,
                 args=(session_id, memory_manager,
-                      lambda p: _collect(_rev_model, p, _rev_options)),
+                      lambda p: _collect(_rev_model, p, _summary_opts)),
                 daemon=True,
             ).start()
 
@@ -1134,9 +1134,12 @@ def _write_files(llm_output: str, output_dir: Path) -> list[str]:
         except ValueError:
             logger.warning(f"Blocked path traversal: {rel_path}")
             continue
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content.strip(), encoding="utf-8")
-        written.append(str(target))
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content.strip(), encoding="utf-8")
+            written.append(str(target))
+        except Exception as e:
+            logger.warning(f"Failed to write {rel_path}: {e}")
     return written
 
 

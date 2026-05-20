@@ -189,4 +189,4 @@ class SkillRegistry:
         return len(self._skills)
 
     def __contains__(self, name: str) -> bool:
-        return name in self._tools  # executable = in tools_dict
+        return name in self._skills

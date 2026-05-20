@@ -207,6 +207,8 @@ def subconscious_status():
 
 @app.route("/api/subconscious/run", methods=["POST"])
 def subconscious_run():
+    if request.remote_addr not in ("127.0.0.1", "::1"):
+        return jsonify({"error": "Forbidden"}), 403
     checks = scheduler.run_now()
     return jsonify({"ok": True, "checks": checks})
 

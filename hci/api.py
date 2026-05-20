@@ -16,6 +16,20 @@ from hci.auth import hci_login_required, csrf_required
 
 api_bp = Blueprint("hci_api", __name__, url_prefix="/hci/api")
 
+# Paths the file browser is allowed to read/write — home dir + project dir.
+_SAFE_ROOTS = (Path.home(), Path(".").resolve())
+
+
+def _safe_path(p: Path) -> bool:
+    """Return True if p is inside at least one of the allowed roots."""
+    for root in _SAFE_ROOTS:
+        try:
+            p.relative_to(root)
+            return True
+        except ValueError:
+            continue
+    return False
+
 
 # ── System stats ──────────────────────────────────────────────────────────────
 
@@ -34,6 +48,8 @@ def list_files():
     raw_path = request.args.get("path", ".")
     try:
         p = Path(raw_path).expanduser().resolve()
+        if not _safe_path(p):
+            return jsonify({"error": "Path outside allowed roots"}), 403
         if not p.exists():
             return jsonify({"error": "Path not found"}), 404
         if p.is_file():
@@ -58,6 +74,8 @@ def read_file():
         return jsonify({"error": "path required"}), 400
     try:
         p = Path(raw_path).expanduser().resolve()
+        if not _safe_path(p):
+            return jsonify({"error": "Path outside allowed roots"}), 403
         if not p.is_file():
             return jsonify({"error": "Not a file"}), 404
         if p.stat().st_size > 1_000_000:
@@ -79,6 +97,8 @@ def write_file():
         return jsonify({"error": "path required"}), 400
     try:
         p = Path(raw_path).expanduser().resolve()
+        if not _safe_path(p):
+            return jsonify({"error": "Path outside allowed roots"}), 403
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(content, encoding="utf-8")
         return jsonify({"ok": True, "path": str(p), "size": len(content)})
@@ -96,6 +116,8 @@ def delete_file():
     try:
         import shutil
         p = Path(raw_path).expanduser().resolve()
+        if not _safe_path(p):
+            return jsonify({"error": "Path outside allowed roots"}), 403
         if not p.exists():
             return jsonify({"error": "Not found"}), 404
         if p.is_dir():
