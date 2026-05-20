@@ -1183,7 +1183,8 @@ def _smoke_test(files: list[str], output_dir: Path) -> list[dict]:
                     capture_output=True, text=True, timeout=10
                 )
                 if r.returncode != 0:
-                    err = (r.stderr or r.stdout).strip().splitlines()[-1][:140]
+                    lines = (r.stderr or r.stdout).strip().splitlines()
+                    err = lines[-1][:140] if lines else "(no output)"
                     results.append({"file": rel, "ok": False, "result": f"SyntaxError: {err}"})
                     continue
             except Exception as e:
@@ -1215,7 +1216,8 @@ def _smoke_test(files: list[str], output_dir: Path) -> list[dict]:
                 if r.returncode == 0:
                     results.append({"file": rel, "ok": True, "result": f"syntax OK ({size:,} bytes)"})
                 else:
-                    err = (r.stderr or r.stdout).strip().splitlines()[-1][:140]
+                    lines = (r.stderr or r.stdout).strip().splitlines()
+                    err = lines[-1][:140] if lines else "(no output)"
                     results.append({"file": rel, "ok": False, "result": f"JS error: {err}"})
             except Exception as e:
                 results.append({"file": rel, "ok": False, "result": f"node check failed: {e}"})
