@@ -320,7 +320,7 @@ def _tool_run_command(cmd: str, cwd: str | None = None, timeout: int = 60) -> To
         "python ", "python3 ", "pytest", "pip install",
         "pip3 install", "node ", "npm ", "npm test",
         "npm run", "npx ", "node --check",
-        "flask ", "uvicorn ", "curl ", "cat ",
+        "flask ", "uvicorn ", "curl ",
     )
     cmd_stripped = cmd.strip()
     if not any(cmd_stripped.startswith(p) for p in _SAFE_PREFIXES):
@@ -663,15 +663,12 @@ class Orchestrator(BaseAgent):
                 role="reviewer",
             )
             mem = _parse_json(mem_text, {})
-            if mem.get("long_term") and isinstance(mem["long_term"], dict):
-                lt = mem["long_term"]
-                if lt.get("topic") and lt.get("value"):
-                    memory_manager.add_long_term(session_id, lt)
-                    # Also persist to cross-session HermesMemory
-                    if hermes_memory:
-                        hermes_memory.upsert_user_fact(
-                            lt["topic"], lt["value"], session_id=session_id
-                        )
+            if mem.get("topic") and mem.get("value"):
+                memory_manager.add_long_term(session_id, mem)
+                if hermes_memory:
+                    hermes_memory.upsert_user_fact(
+                        mem["topic"], mem["value"], session_id=session_id
+                    )
         except Exception as e:
             logger.debug(f"Memory update failed: {e}")
 
@@ -681,10 +678,11 @@ class Orchestrator(BaseAgent):
         if hermes_memory:
             _rev_model      = self.models.get("reviewer", "")
             _summary_opts   = {**REVIEWER_OPTIONS, "num_predict": 512}
+            _mon            = self.monitor
             threading.Thread(
                 target=hermes_memory.compress_session,
                 args=(session_id, memory_manager,
-                      lambda p: _collect(_rev_model, p, _summary_opts)),
+                      lambda p: _collect(_rev_model, p, _summary_opts, _mon)),
                 daemon=True,
             ).start()
 
@@ -722,6 +720,10 @@ class Orchestrator(BaseAgent):
             return
 
         self.monitor.reset_tokens()
+        _rg_ok, _rg_msg = self._resource_guard.check_resources_ok()
+        if not _rg_ok:
+            yield self._c("supervisor", f"⚠ Resource warning: {_rg_msg}", 2)
+
         output_dir = Path(output_path).expanduser().resolve()
         output_dir.mkdir(parents=True, exist_ok=True)
         built_files: list[str] = []
@@ -1291,17 +1293,10 @@ def _p_supervisor_chat(user_msg: str, response: str) -> str:
 def _p_memory_update(user_msg: str, response: str) -> str:
     return (
         f"Conversation:\nUser: {user_msg[:250]}\nAssistant: {response[:250]}\n\n"
-        "Task: Classify what to remember.\n\n"
-        "short_term: always fill in with the exchange summary.\n"
-        "long_term: ONLY if user revealed name, preference, or persistent fact. "
-        "Otherwise set to null.\n\n"
-        "Reply with ONLY this JSON, values filled in (no markdown, no prose):\n"
-        '{"short_term":{"role":"exchange","user":"FILL_USER_SUMMARY","assistant":"FILL_ASSISTANT_SUMMARY"},'
-        '"long_term":null}\n\n'
-        "Replace FILL_USER_SUMMARY with a 1-sentence summary of what the user asked.\n"
-        "Replace FILL_ASSISTANT_SUMMARY with a 1-sentence summary of the answer.\n"
-        "If user said their name or a preference, replace null with: "
-        '{"topic":"TOPIC","value":"VALUE"}'
+        "Did the user reveal their name, a preference, or a persistent fact?\n"
+        "If YES reply with ONLY this JSON (fill in real values):\n"
+        '{"topic":"TOPIC","value":"VALUE"}\n\n'
+        "If NO reply with ONLY: null"
     )
 
 

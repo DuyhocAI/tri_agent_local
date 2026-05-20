@@ -64,12 +64,14 @@ class SkillRegistry:
         self._tools: dict = tools_dict or {}
         self._destructive: set[str] = destructive_set or set()
         self._skills: dict[str, SkillDef] = {}
+        self._bm25_cache = None  # invalidated on load_all / reload
         self.load_all()
 
     # ── Loading ───────────────────────────────────────────────────────────────
 
     def load_all(self) -> None:
         """Walk all skill dirs and load every *.yaml file."""
+        self._bm25_cache = None
         count_files = 0
         for d in self._skill_dirs:
             if not d.is_dir():
@@ -151,9 +153,11 @@ class SkillRegistry:
             return []
         try:
             from rank_bm25 import BM25Okapi
-            skills_list = list(self._skills.values())
-            corpus = [s.description.lower().split() for s in skills_list]
-            bm25 = BM25Okapi(corpus)
+            if self._bm25_cache is None:
+                skills_list = list(self._skills.values())
+                corpus = [s.description.lower().split() for s in skills_list]
+                self._bm25_cache = (skills_list, BM25Okapi(corpus))
+            skills_list, bm25 = self._bm25_cache
             scores = bm25.get_scores(query.lower().split())
             ranked = sorted(zip(scores, skills_list), key=lambda x: -x[0])
             results = [s for score, s in ranked[:top_k] if score > 0]
