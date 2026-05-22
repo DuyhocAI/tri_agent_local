@@ -14,7 +14,7 @@ Người dùng
 │  Web UI     │ ◄────────────────── │          Orchestrator            │
 │  (port 7799)│                     │                                  │
 └─────────────┘                     │  Primary  →  Reviewer            │
-                                    │      └──────────► Supervisor      │
+                                    │      └──────────► Supervisor     │
 ┌─────────────┐                     │                                  │
 │  HCI Panel  │ ◄─── SocketIO ────► │  MemoryManager  │  SystemMonitor │
 │  /hci/      │                     │  HermesMemory   │  SubScheduler  │
